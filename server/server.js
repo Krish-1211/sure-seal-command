@@ -16,10 +16,9 @@ let products = [];
 let customers = [];
 let orders = [];
 
-const dataDir = path.join(__dirname, "data");
-const productsFile = path.join(dataDir, "products.json");
-const customersFile = path.join(dataDir, "customers.json");
-const ordersFile = path.join(dataDir, "orders.json");
+const productsFile = path.join(__dirname, "data/products.json");
+const customersFile = path.join(__dirname, "data/customers.json");
+const ordersFile = path.join(__dirname, "data/orders.json");
 
 // Define a safe reader for JSON files
 const safelyReadJsonFile = (filePath, defaultVal) => {
