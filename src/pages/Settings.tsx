@@ -120,7 +120,7 @@ export default function Settings() {
                                 <Database className="h-5 w-5 text-muted-foreground" />
                                 <div>
                                     <p className="font-heading font-semibold text-sm">Share Analytics</p>
-                                    <p className="text-[10px] text-muted-foreground">Help improve Sure Seal</p>
+                                    <p className="text-[10px] text-muted-foreground">Help improve Sure Seal Sealants</p>
                                 </div>
                             </div>
                             <Switch checked={settings.analyticsOptIn} onCheckedChange={() => handleToggle("analyticsOptIn")} />

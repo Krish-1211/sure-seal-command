@@ -36,10 +36,10 @@ const Login = () => {
             <div className="absolute top-0 w-full h-1/2 bg-gradient-to-b from-primary/5 to-transparent -z-10" />
 
             <div className="text-center space-y-2 relative z-10 mt-8 mb-6">
-                <div className="w-16 h-16 bg-primary/10 rounded-2xl mx-auto flex items-center justify-center mb-4">
-                    <span className="text-3xl font-heading font-bold text-primary">SS</span>
+                <div className="mx-auto flex items-center justify-center mb-4">
+                    <img src="/logo.png" alt="Sure Seal Sealants Logo" className="h-24 w-auto object-contain" />
                 </div>
-                <h1 className="text-3xl font-heading font-black text-foreground tracking-tight">Sure Seal</h1>
+                <h1 className="text-2xl font-heading font-black text-foreground tracking-tight">Sure Seal Sealants</h1>
                 <p className="text-muted-foreground font-body text-sm max-w-[250px] mx-auto">Sales Force Automation Platform</p>
             </div>
 

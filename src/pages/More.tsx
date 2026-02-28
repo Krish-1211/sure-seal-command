@@ -108,8 +108,9 @@ const More = () => {
           </div>
         ))}
 
-        <p className="text-center text-[10px] font-body text-muted-foreground py-2">
-          Sure Seal SFA v1.0.0 · Build 2026.02
+        <p className="text-center text-[10px] font-body text-muted-foreground py-2 mb-4">
+          <img src="/logo.png" alt="Sure Seal Sealants" className="h-6 w-auto mx-auto mb-2 opacity-50 grayscale" />
+          Sure Seal Sealants SFA v1.0.0 · Build 2026.02
         </p>
       </div>
     </MobileLayout>

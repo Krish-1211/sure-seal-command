@@ -24,7 +24,7 @@ export default function HelpSupport() {
                         <HelpCircle className="h-8 w-8 text-primary" />
                     </div>
                     <h2 className="text-xl font-heading font-bold">How can we help?</h2>
-                    <p className="text-sm font-medium text-muted-foreground">Contact the Sure Seal administrative team for application difficulties or order management problems.</p>
+                    <p className="text-sm font-medium text-muted-foreground">Contact the Sure Seal Sealants administrative team for application difficulties or order management problems.</p>
 
                     <div className="pt-6 grid gap-3">
                         <Button className="w-full justify-start h-14 rounded-2xl bg-muted text-foreground hover:bg-muted/80 shadow-sm gap-3 px-5">
