@@ -38,7 +38,7 @@ const writeJsonFile = (filePath, data) => {
     try {
         fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
     } catch (error) {
-        console.error(`Error writing ${filePath}:`, error);
+        console.warn(`Note: Could not write to ${filePath} (Expected if on Vercel). In-memory cache updated.`);
     }
 };
 
@@ -100,15 +100,21 @@ app.post("/api/orders", (req, res) => {
     res.status(201).json(order);
 });
 
-// Serve frontend static files in production
-const frontendBuildPath = path.join(__dirname, "../dist");
-app.use(express.static(frontendBuildPath));
-app.get("*", (req, res) => {
-    res.sendFile(path.join(frontendBuildPath, "index.html"));
-});
+// Serve frontend static files in production if not on Vercel
+if (!process.env.VERCEL) {
+    const frontendBuildPath = path.join(__dirname, "../dist");
+    app.use(express.static(frontendBuildPath));
+    app.get("*", (req, res) => {
+        res.sendFile(path.join(frontendBuildPath, "index.html"));
+    });
+}
 
 // App initialization
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-    console.log(`Backend server running on http://localhost:${PORT}`);
-});
+if (!process.env.VERCEL) {
+    const PORT = process.env.PORT || 3001;
+    app.listen(PORT, () => {
+        console.log(`Backend server running on http://localhost:${PORT}`);
+    });
+}
+
+export default app;
