@@ -235,9 +235,26 @@ const AdminDashboard = () => {
       </header>
 
       <div className="px-4 mt-6 space-y-4 pb-8">
+
+        {/* Fleet Tracker quick card (admin only) */}
+        <button
+          onClick={() => navigate('/fleet')}
+          className="w-full bg-card border border-border/50 rounded-2xl p-4 shadow-sm flex items-center gap-4 hover:border-primary/30 hover:shadow-md transition-all text-left"
+        >
+          <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+            <MapPin className="h-6 w-6 text-primary" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-heading font-bold text-foreground">Fleet Tracker</p>
+            <p className="text-xs text-muted-foreground">View live GPS positions of all reps</p>
+          </div>
+          <div className="text-primary shrink-0">›</div>
+        </button>
+
         <h3 className="text-sm font-heading font-bold uppercase tracking-wider text-muted-foreground">
           Recent Activity & Orders
         </h3>
+
 
         {isLoading ? (
           <div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>

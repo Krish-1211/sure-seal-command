@@ -1,5 +1,5 @@
 import { MobileLayout } from "@/components/layout/MobileLayout";
-import { User, FileText, Settings, HelpCircle, LogOut, ChevronRight, History, BarChart3, Download, Target, Route } from "lucide-react";
+import { User, FileText, Settings, HelpCircle, LogOut, ChevronRight, History, BarChart3, Download, Target, Route, MapPin } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -26,6 +26,7 @@ const menuSections = [
     items: [
       { id: "pricing", icon: FileText, label: "Pricing Management", subtitle: "Manage B2B levels (Admin)" },
       { id: "targets", icon: Target, label: "Target Management", subtitle: "Set rep monthly targets (Admin)" },
+      { id: "fleet", icon: MapPin, label: "Fleet Tracker", subtitle: "Live rep GPS positions (Admin)" },
       { id: "settings", icon: Settings, label: "App Settings", subtitle: "Sync, notifications, offline" },
       { id: "help", icon: HelpCircle, label: "Help & Support", subtitle: "Contact & FAQs" },
       { id: "logout", icon: LogOut, label: "Sign Out", subtitle: "" },
@@ -60,6 +61,8 @@ const More = () => {
       navigate("/pricing-management");
     } else if (id === "route") {
       navigate("/route");
+    } else if (id === "fleet") {
+      navigate("/fleet");
     } else if (id === "targets") {
       navigate("/targets");
     } else {

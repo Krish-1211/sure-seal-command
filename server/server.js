@@ -554,7 +554,36 @@ app.post("/api/pricing-levels/:id/import-csv", requireAuth, requireAdmin, upload
 
 // ─── Feature 9: Reorder — handled client-side ────────────────────────────────
 
+// ─── GPS Location – salesman heartbeat ───────────────────────────────────────
+app.post("/api/location", requireAuth, async (req, res) => {
+    try {
+        const { lat, lng } = req.body;
+        if (lat == null || lng == null) return res.status(400).json({ error: 'lat/lng required' });
+        await client.query(
+            `UPDATE users SET last_lat=$1, last_lng=$2, location_updated_at=now() WHERE id=$3`,
+            [lat, lng, req.user.id]
+        );
+        res.json({ ok: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── GPS Fleet – admin sees all reps ─────────────────────────────────────────
+app.get("/api/fleet", requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const result = await client.query(
+            `SELECT id, name, email, last_lat, last_lng, location_updated_at
+             FROM users WHERE role='salesman' AND last_lat IS NOT NULL`
+        );
+        res.json(result.rows.map(r => ({
+            id: r.id, name: r.name, email: r.email,
+            lat: parseFloat(r.last_lat), lng: parseFloat(r.last_lng),
+            updatedAt: r.location_updated_at
+        })));
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ─── Feature 7: Check-ins (with optional photo) ──────────────────────────────
+
 app.get("/api/check-ins", requireAuth, async (req, res) => {
     try {
         let query = `
