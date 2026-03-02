@@ -130,5 +130,55 @@
       }
     ],
     "createdAt": "2026-02-28T06:25:50.282Z"
+  },
+  {
+    "id": "1772351552278",
+    "items": [
+      {
+        "product": {
+          "handle": "grout-tile-stone-cleaner-concentrate",
+          "name": "Grout Tile & Stone Cleaner Concentrate",
+          "description": "Concentrated heavy duty cleaner. Cleans toughest stains. Great for dirt removal and cleaning concrete. Recommended for use on sealed surfaces.",
+          "category": "Cleaners",
+          "tags": [
+            "retail"
+          ],
+          "image": "/images/cleaner_gts1u_group.png",
+          "variants": [
+            {
+              "name": "1 LTR",
+              "sku": "GTS1U",
+              "price": 17.81,
+              "stock": 100
+            },
+            {
+              "name": "4 LTR",
+              "sku": "GTS4U",
+              "price": 65.41,
+              "stock": 100
+            },
+            {
+              "name": "20 LTR",
+              "sku": "GTS20D",
+              "price": 277.74,
+              "stock": 100
+            }
+          ]
+        },
+        "variant": {
+          "name": "1 LTR",
+          "sku": "GTS1U",
+          "price": 17.81,
+          "stock": 100
+        },
+        "quantity": 2
+      }
+    ],
+    "subtotal": 35.62,
+    "discount": 1.78,
+    "tax": 3.38,
+    "grandTotal": 37.22,
+    "pricingLevelId": "level-1",
+    "createdAt": "2026-03-01T07:52:32.278Z"
   }
 ]

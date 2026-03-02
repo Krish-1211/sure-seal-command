@@ -1,8 +1,11 @@
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { ChevronLeft, MapPin, Phone, Mail, Clock, DollarSign, Package, CheckCircle2, History, AlertCircle } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { useCustomer } from "@/contexts/CustomerContext";
+import { toast } from "sonner";
+import { apiFetch } from "@/lib/apiFetch";
 
 export default function CustomerDetails() {
     const { id } = useParams();
@@ -11,11 +14,38 @@ export default function CustomerDetails() {
     const { data: customers = [], isLoading } = useQuery({
         queryKey: ['customers'],
         queryFn: async () => {
-            const res = await fetch('/api/customers');
+            const res = await apiFetch('/api/customers');
             if (!res.ok) throw new Error("Failed");
             return res.json();
         }
     });
+
+    const { data: pricingLevels = [] } = useQuery({
+        queryKey: ['pricing-levels'],
+        queryFn: async () => {
+            const res = await apiFetch('/api/pricing-levels');
+            if (!res.ok) throw new Error("Failed");
+            return res.json();
+        }
+    });
+
+    const queryClient = useQueryClient();
+    const updateCustomer = useMutation({
+        mutationFn: async ({ id, data }: { id: string, data: any }) => {
+            const res = await apiFetch(`/api/customers/${id}`, {
+                method: 'PUT',
+                body: JSON.stringify(data)
+            });
+            if (!res.ok) throw new Error("Update failed");
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['customers'] });
+            toast.success("Pricing level updated");
+        }
+    });
+
+    const { setSelectedCustomer } = useCustomer();
 
     const decodedId = decodeURIComponent(id || "");
     const customer = customers.find((c: any) => c.name === decodedId) || {
@@ -92,10 +122,37 @@ export default function CustomerDetails() {
                         <Button className="flex-1 h-12 bg-primary text-primary-foreground font-bold font-heading rounded-xl shadow-sm gap-2">
                             <Phone className="h-4 w-4" /> Call Client
                         </Button>
-                        <Button variant="outline" className="flex-1 h-12 bg-card border-border/50 text-foreground font-bold font-heading rounded-xl shadow-sm gap-2 active:bg-muted">
-                            <MapPin className="h-4 w-4" /> Get Directions
+                        <Button
+                            variant="outline"
+                            className="flex-1 h-12 bg-card border-border/50 text-foreground font-bold font-heading rounded-xl shadow-sm gap-2 active:bg-muted"
+                            onClick={() => {
+                                setSelectedCustomer(customer);
+                                toast.success(`Selected ${customer.name}`);
+                                navigate("/catalog");
+                            }}
+                        >
+                            <Package className="h-4 w-4" /> Start Order
                         </Button>
                     </div>
+                </div>
+
+                {/* Pricing Level Selector */}
+                <div className="bg-card border border-border/50 rounded-2xl p-5 shadow-sm space-y-4">
+                    <h3 className="text-xs font-heading font-bold text-muted-foreground uppercase tracking-wider">Pricing Level</h3>
+                    <select
+                        className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm font-body"
+                        value={customer.pricingLevelId || ""}
+                        onChange={(e) => {
+                            if (customer.id) {
+                                updateCustomer.mutate({ id: customer.id, data: { pricingLevelId: e.target.value || null } });
+                            }
+                        }}
+                    >
+                        <option value="">Default Retail Pricing</option>
+                        {pricingLevels.map((lvl: any) => (
+                            <option key={lvl.id} value={lvl.id}>{lvl.name}</option>
+                        ))}
+                    </select>
                 </div>
 
                 {/* Account Overview */}

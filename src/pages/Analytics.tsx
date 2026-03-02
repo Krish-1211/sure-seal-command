@@ -28,8 +28,8 @@ export default function Analytics() {
                             <TrendingUp className="h-5 w-5" />
                         </div>
                         <span className="text-[10px] font-bold uppercase tracking-widest text-primary/70 mb-1">Commission</span>
-                        <p className="text-2xl font-black font-heading text-foreground">$4,110</p>
-                        <p className="text-[10px] text-success mt-2 font-bold px-2 py-1 bg-success/15 rounded-full inline-block">+12% vs last month</p>
+                        <p className="text-base font-black font-heading text-muted-foreground">Coming Soon</p>
+                        <p className="text-[10px] text-muted-foreground/60 mt-2 px-2 py-1 bg-muted rounded-full inline-block">Live calculation in next update</p>
                     </div>
 
                     <div className="bg-accent/5 rounded-2xl p-5 border border-accent/10 flex flex-col items-center text-center">
@@ -37,8 +37,8 @@ export default function Analytics() {
                             <DollarSign className="h-5 w-5 text-accent" />
                         </div>
                         <span className="text-[10px] font-bold uppercase tracking-widest text-accent/70 mb-1">Avg Order</span>
-                        <p className="text-2xl font-black font-heading text-foreground">$1,223</p>
-                        <p className="text-[10px] text-success mt-2 font-bold px-2 py-1 bg-success/15 rounded-full inline-block">+5% vs last month</p>
+                        <p className="text-base font-black font-heading text-muted-foreground">Coming Soon</p>
+                        <p className="text-[10px] text-muted-foreground/60 mt-2 px-2 py-1 bg-muted rounded-full inline-block">Live calculation in next update</p>
                     </div>
                 </div>
 

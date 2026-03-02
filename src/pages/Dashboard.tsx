@@ -9,6 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { formatCurrency } from "@/lib/utils";
+import { apiFetch } from "@/lib/apiFetch";
 
 const SalesmanDashboard = () => {
   const { user } = useAuth();
@@ -129,13 +130,13 @@ const AdminDashboard = () => {
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ['admin-orders'],
     queryFn: async () => {
-      const res = await fetch('/api/orders');
+      const res = await apiFetch('/api/orders');
       if (!res.ok) throw new Error("Failed to fetch orders");
       return res.json();
     }
   });
 
-  const totalRevenue = orders.reduce((acc: number, val: any) => acc + (val.grandTotal || 0), 0);
+  const totalRevenue = orders.reduce((acc: number, val: any) => acc + (Number(val.grandTotal) || 0), 0);
 
   return (
     <>
@@ -179,8 +180,15 @@ const AdminDashboard = () => {
               <div key={order.id} className="bg-card border border-border/50 rounded-xl p-4 shadow-sm">
                 <div className="flex justify-between items-start mb-2">
                   <div>
-                    <p className="font-bold text-foreground font-heading">Order #{order.id.slice(-6)}</p>
-                    <p className="text-xs text-muted-foreground">{new Date(order.createdAt).toLocaleString()}</p>
+                    <p className="font-bold text-foreground font-heading">Order #{order.orderNumber ?? order.id.slice(-6)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(order.createdAt).toLocaleString()}
+                    </p>
+                    {user?.role === "admin" && (
+                      <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-1">
+                        Sold by {order.userName}
+                      </p>
+                    )}
                   </div>
                   <p className="font-bold text-primary">{formatCurrency(order.grandTotal)}</p>
                 </div>

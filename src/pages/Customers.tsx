@@ -3,6 +3,7 @@ import { CustomerCard } from "@/components/CustomerCard";
 import { Search, SlidersHorizontal, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/apiFetch";
 
 interface Customer {
   id?: string;
@@ -23,7 +24,7 @@ const Customers = () => {
   const { data: customers = [], isLoading } = useQuery<Customer[]>({
     queryKey: ['customers'],
     queryFn: async () => {
-      const res = await fetch('/api/customers');
+      const res = await apiFetch('/api/customers');
       if (!res.ok) throw new Error("Failed to fetch customers");
       return res.json();
     }

@@ -10,13 +10,19 @@ export function ProductCard(product: Product) {
   const { cart, addToCart, updateQuantity } = useCart();
   const [selectedVariantIndex, setSelectedVariantIndex] = useState(0);
 
-  const selectedVariant = variants[selectedVariantIndex];
+  const selectedVariant = variants[selectedVariantIndex] as any;
   const cartItem = cart.find(item => item.variant.sku === selectedVariant.sku);
   const quantity = cartItem ? cartItem.quantity : 0;
 
-  const isLowStock = selectedVariant.stock < 50;
+  const stockStatus: string = selectedVariant.stockStatus || selectedVariant.stock_status || 'in_stock';
+  const isOutOfStock = stockStatus === 'out_of_stock';
+  const isLowStock = stockStatus === 'low_stock';
 
   const handleIncrement = () => {
+    if (isOutOfStock) {
+      toast.error(`${name} is currently out of stock`);
+      return;
+    }
     if (quantity === 0) {
       addToCart(product, selectedVariant, 1);
       toast.success(`Added ${name} to order`);
@@ -74,15 +80,13 @@ export function ProductCard(product: Product) {
 
           <div className="flex items-center justify-between mb-4">
             <p className="text-lg md:text-xl font-heading font-bold text-foreground tracking-tight">
-              {formatCurrency(selectedVariant.price)}
+              {isOutOfStock ? <span className="text-muted-foreground/50 line-through text-base">{formatCurrency(selectedVariant.price)}</span> : formatCurrency(selectedVariant.price)}
             </p>
-            <span
-              className={`text-[10px] md:text-xs font-semibold px-2.5 py-1 rounded-full ${isLowStock
-                ? "bg-accent/10 text-accent"
-                : "bg-success/15 text-success"
-                }`}
-            >
-              {isLowStock ? "Low Stock" : `${selectedVariant.stock} in stock`}
+            <span className={`text-[10px] md:text-xs font-bold px-2.5 py-1 rounded-full ${isOutOfStock ? 'bg-destructive/10 text-destructive' :
+                isLowStock ? 'bg-accent/10 text-accent' :
+                  'bg-success/15 text-success'
+              }`}>
+              {isOutOfStock ? 'Out of Stock' : isLowStock ? `Low Stock (${selectedVariant.stockQty ?? '< 10'})` : 'In Stock'}
             </span>
           </div>
 
@@ -100,7 +104,9 @@ export function ProductCard(product: Product) {
             <span className="text-base md:text-xl font-heading font-bold text-foreground w-8 text-center">{quantity}</span>
             <button
               onClick={handleIncrement}
-              className="h-10 w-10 md:h-12 md:w-12 rounded-lg bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/95 shadow-sm active:scale-95 transition-all"
+              disabled={isOutOfStock}
+              className={`h-10 w-10 md:h-12 md:w-12 rounded-lg flex items-center justify-center shadow-sm active:scale-95 transition-all ${isOutOfStock ? 'bg-muted text-muted-foreground cursor-not-allowed' : 'bg-primary text-primary-foreground hover:bg-primary/95'
+                }`}
             >
               <Plus className="h-4 w-4 md:h-5 md:w-5" />
             </button>

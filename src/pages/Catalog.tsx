@@ -1,9 +1,11 @@
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { ProductCard } from "@/components/ProductCard";
-import { Search, SlidersHorizontal, Scan, Loader2 } from "lucide-react";
+import { Search, SlidersHorizontal, Scan, Loader2, Tag } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Product } from "@/lib/products";
+import { useCustomer } from "@/contexts/CustomerContext";
+import { apiFetch } from "@/lib/apiFetch";
 
 const Catalog = () => {
   const [category, setCategory] = useState("All");
@@ -12,26 +14,38 @@ const Catalog = () => {
   const { data: products = [], isLoading } = useQuery<Product[]>({
     queryKey: ['products'],
     queryFn: async () => {
-      const res = await fetch('/api/products');
+      const res = await apiFetch('/api/products');
       if (!res.ok) throw new Error("Failed to fetch products");
       return res.json();
     }
   });
+
+  const { pricingLevels, selectedPricingLevelId, setSelectedPricingLevelId, getAdjustedPrice } = useCustomer();
 
   const categories = useMemo(() => {
     const types = Array.from(new Set(products.map((p) => p.category)));
     return ["All", ...types];
   }, [products]);
 
+  // Apply pricing level to products
   const filtered = useMemo(() => {
     return products.filter((p) => {
       const matchesCategory = category === "All" || p.category === category;
       const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.description.toLowerCase().includes(searchQuery.toLowerCase());
       return matchesCategory && matchesSearch;
+    }).map(p => {
+      const adjustedVariants = p.variants.map((v: any) => ({
+        ...v,
+        price: getAdjustedPrice(v.sku, v.price),
+        stockStatus: v.stockStatus || v.stock_status || 'in_stock',
+        stockQty: v.stockQty ?? v.stock_qty ?? 100
+      }));
+      return { ...p, variants: adjustedVariants };
     });
-  }, [category, searchQuery, products]);
+  }, [category, searchQuery, products, selectedPricingLevelId, pricingLevels]);
 
+  const currentLevel = pricingLevels.find((l: any) => l.id === selectedPricingLevelId);
 
   return (
     <MobileLayout>
@@ -42,6 +56,22 @@ const Catalog = () => {
             <Scan className="h-4 w-4" />
           </button>
         </div>
+
+        {/* Pricing Level Selector */}
+        <div className="flex items-center gap-2 mb-3 p-2.5 rounded-xl bg-muted/60 border border-border/50">
+          <Tag className="h-4 w-4 text-primary shrink-0" />
+          <span className="text-[10px] font-heading font-bold uppercase tracking-wider text-muted-foreground shrink-0">Price Level</span>
+          <select
+            value={selectedPricingLevelId}
+            onChange={(e) => setSelectedPricingLevelId(e.target.value)}
+            className="flex-1 h-7 px-2 rounded-md bg-card border border-border text-xs font-heading font-bold text-foreground outline-none focus:ring-2 focus:ring-primary/40"
+          >
+            {pricingLevels.map((level: any) => (
+              <option key={level.id} value={level.id}>{level.name}</option>
+            ))}
+          </select>
+        </div>
+
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

@@ -1,5 +1,5 @@
 import { MobileLayout } from "@/components/layout/MobileLayout";
-import { User, FileText, Settings, HelpCircle, LogOut, ChevronRight, History, BarChart3, Download } from "lucide-react";
+import { User, FileText, Settings, HelpCircle, LogOut, ChevronRight, History, BarChart3, Download, MessageCircle, Target } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -11,6 +11,7 @@ const menuSections = [
       { id: "profile", icon: User, label: "My Profile", subtitle: "Manage your details" },
       { id: "analytics", icon: BarChart3, label: "My Analytics", subtitle: "Performance & commission" },
       { id: "history", icon: History, label: "Order History", subtitle: "All past orders & invoices" },
+      { id: "messages", icon: MessageCircle, label: "Messages", subtitle: "Chat with your team" },
     ],
   },
   {
@@ -23,6 +24,8 @@ const menuSections = [
   {
     title: "Settings",
     items: [
+      { id: "pricing", icon: FileText, label: "Pricing Management", subtitle: "Manage B2B levels (Admin)" },
+      { id: "targets", icon: Target, label: "Target Management", subtitle: "Set rep monthly targets (Admin)" },
       { id: "settings", icon: Settings, label: "App Settings", subtitle: "Sync, notifications, offline" },
       { id: "help", icon: HelpCircle, label: "Help & Support", subtitle: "Contact & FAQs" },
       { id: "logout", icon: LogOut, label: "Sign Out", subtitle: "" },
@@ -53,6 +56,12 @@ const More = () => {
       toast.success(`Spreadsheet exported and emailed to you.`);
     } else if (id === "reports") {
       toast.success(`Weekly report generated and emailed to you.`);
+    } else if (id === "pricing") {
+      navigate("/pricing-management");
+    } else if (id === "messages") {
+      navigate("/messages");
+    } else if (id === "targets") {
+      navigate("/targets");
     } else {
       toast.info(`Opening ${label}...`);
     }
@@ -103,7 +112,10 @@ const More = () => {
                   </div>
                   <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 </button>
-              ))}
+              )).filter((item: any) => {
+                if (item.key === "pricing" && user?.role !== "admin") return false;
+                return true;
+              })}
             </div>
           </div>
         ))}

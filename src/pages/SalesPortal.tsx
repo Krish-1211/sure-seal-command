@@ -4,53 +4,52 @@ import { ChevronRight, ChevronLeft, MapPin, DollarSign, Package, TrendingUp, Tre
 import { PerformanceRing } from "@/components/PerformanceRing";
 import { Button } from "@/components/ui/button";
 
-const mockSalesReps = [
-    {
-        id: "scott",
-        name: "Scott Mitchell",
-        region: "Melbourne SE",
-        phone: "+61 400 123 456",
-        email: "scott.m@sureseal.com.au",
-        performance: {
-            percentage: 82,
-            revenue: "$24,500",
-            orders: 18,
-            pending: 3,
-            trend: "up"
-        }
-    },
-    {
-        id: "sarah",
-        name: "Sarah Jenkins",
-        region: "Sydney North",
-        phone: "+61 400 987 654",
-        email: "sarah.j@sureseal.com.au",
-        performance: {
-            percentage: 95,
-            revenue: "$42,100",
-            orders: 34,
-            pending: 1,
-            trend: "up"
-        }
-    },
-    {
-        id: "michael",
-        name: "Michael Chang",
-        region: "Brisbane",
-        phone: "+61 400 555 777",
-        email: "michael.c@sureseal.com.au",
-        performance: {
-            percentage: 45,
-            revenue: "$11,200",
-            orders: 8,
-            pending: 5,
-            trend: "down"
-        }
-    }
-];
+import { useQuery } from "@tanstack/react-query";
+import { formatCurrency } from "@/lib/utils";
+import { apiFetch } from "@/lib/apiFetch";
 
 export default function SalesPortal() {
-    const [selectedRep, setSelectedRep] = useState<typeof mockSalesReps[0] | null>(null);
+    const [selectedRep, setSelectedRep] = useState<any | null>(null);
+
+    const { data: users = [], isLoading: loadingUsers } = useQuery({
+        queryKey: ['users'],
+        queryFn: async () => {
+            const res = await apiFetch('/api/users');
+            if (!res.ok) throw new Error("Failed to fetch users");
+            return res.json();
+        }
+    });
+
+    const { data: orders = [], isLoading: loadingOrders } = useQuery({
+        queryKey: ['orders'],
+        queryFn: async () => {
+            const res = await apiFetch('/api/orders');
+            if (!res.ok) throw new Error("Failed to fetch orders");
+            return res.json();
+        }
+    });
+
+    const isLoading = loadingUsers || loadingOrders;
+
+    const salesReps = users.filter((u: any) => u.role === "salesman").map((rep: any) => {
+        const repOrders = orders.filter((o: any) => o.userId === rep.id && o.status !== 'cancelled');
+        const revenueNum = repOrders.reduce((acc: number, o: any) => acc + (Number(o.grandTotal) || 0), 0);
+        const target = rep.monthlyTarget || rep.monthly_target || 20000; // Use DB target
+        const percentage = Math.min(Math.round((revenueNum / target) * 100), 100);
+
+        return {
+            ...rep,
+            performance: {
+                percentage,
+                revenue: formatCurrency(revenueNum),
+                revenueNum,
+                target,
+                orders: repOrders.length,
+                pending: 0,
+                trend: percentage > 50 ? "up" : "down"
+            }
+        };
+    });
 
     return (
         <MobileLayout>
@@ -63,10 +62,10 @@ export default function SalesPortal() {
 
                     <div className="px-4 py-4 space-y-3 pb-8">
                         <h2 className="text-xs font-heading font-bold text-muted-foreground uppercase tracking-wider mb-2">
-                            Active Representatives ({mockSalesReps.length})
+                            Active Representatives ({salesReps.length})
                         </h2>
 
-                        {mockSalesReps.map((rep, index) => (
+                        {salesReps.map((rep, index) => (
                             <div
                                 key={rep.id}
                                 onClick={() => setSelectedRep(rep)}

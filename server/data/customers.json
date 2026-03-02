@@ -1,5 +1,6 @@
 [
   {
+    "id": "cust-1772349845501-0",
     "name": "Victoria's Paint & Tile",
     "address": "501 Williamstown Rd, Port Melbourne",
     "phone": "+61 400 000 001",
@@ -8,6 +9,7 @@
     "outstanding": "$12,400"
   },
   {
+    "id": "cust-1772349845501-1",
     "name": "Sydney Stone Supplies",
     "address": "15 Artarmon Rd, Artarmon",
     "phone": "+61 400 000 002",
@@ -16,6 +18,7 @@
     "outstanding": "$0"
   },
   {
+    "id": "cust-1772349845501-2",
     "name": "Gold Coast Tilings",
     "address": "78 Ferry Rd, Southport",
     "phone": "+61 400 000 003",
@@ -24,6 +27,7 @@
     "outstanding": "$28,750"
   },
   {
+    "id": "cust-1772349845501-3",
     "name": "Sunshine Coast Hardware",
     "address": "23 Maroochydore Rd, Maroochydore",
     "phone": "+61 400 000 004",
@@ -32,6 +36,7 @@
     "outstanding": "$5,200"
   },
   {
+    "id": "cust-1772349845501-4",
     "name": "Adelaide Adhesive Depot",
     "address": "91 Port Rd, Hindmarsh",
     "phone": "+61 400 000 005",
@@ -40,6 +45,7 @@
     "outstanding": "$1,800"
   },
   {
+    "id": "cust-1772349845501-5",
     "name": "National Tile & Stone",
     "address": "56 Parramatta Rd, Lidcombe",
     "phone": "+61 400 000 006",

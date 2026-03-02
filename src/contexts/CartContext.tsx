@@ -13,6 +13,7 @@ interface CartContextType {
     removeFromCart: (variantSku: string) => void;
     updateQuantity: (variantSku: string, delta: number) => void;
     clearCart: () => void;
+    loadCart: (items: CartItem[]) => void;
     subtotal: number;
     totalItems: number;
 }
@@ -52,6 +53,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     const clearCart = () => setCart([]);
+    const loadCart = (items: CartItem[]) => setCart(items);
 
     const subtotal = cart.reduce((acc, item) => acc + item.variant.price * item.quantity, 0);
     const totalItems = cart.reduce((acc, item) => acc + item.quantity, 0);
@@ -64,6 +66,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 removeFromCart,
                 updateQuantity,
                 clearCart,
+                loadCart,
                 subtotal,
                 totalItems,
             }}

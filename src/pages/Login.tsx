@@ -12,21 +12,32 @@ const Login = () => {
     // Auth State
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
 
-    const handleLogin = (e: React.FormEvent) => {
+    const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
+        setIsLoading(true);
 
-        const isKevinValid = username.toLowerCase() === "kevin" && password === "kevin123";
-        const isScottValid = username.toLowerCase() === "scott" && password === "scott123";
+        try {
+            const res = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: username.toLowerCase(), password })
+            });
 
-        if (isKevinValid) {
-            login("Kevin", "admin");
-            navigate("/dashboard");
-        } else if (isScottValid) {
-            login("Scott Mitchell", "salesman");
-            navigate("/dashboard");
-        } else {
-            toast.error("Invalid username or password.");
+            if (res.ok) {
+                const { token, user } = await res.json();
+                login(user, token);
+                navigate("/dashboard");
+                toast.success(`Welcome back, ${user.name}!`);
+            } else {
+                toast.error("Invalid username or password.");
+            }
+        } catch (error) {
+            toast.error("Network error. Please try again.");
+            console.error(error);
+        } finally {
+            setIsLoading(false);
         }
     };
 
