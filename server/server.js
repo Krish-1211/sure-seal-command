@@ -7,7 +7,7 @@ import pg from "pg";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
-const { Client } = pg;
+const { Pool } = pg;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,10 +29,19 @@ if (!connectionString) {
     console.error('❌ DATABASE_URL environment variable is not set. Check your .env file.');
     process.exit(1);
 }
-const client = new Client({ connectionString });
-client.connect()
-    .then(() => console.log('✅ Connected to Supabase PostgreSQL'))
-    .catch(err => { console.error('❌ Database connection error:', err.message); process.exit(1); });
+const pool = new Pool({
+    connectionString,
+    max: 5,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+    ssl: { rejectUnauthorized: false }
+});
+
+// Verify connectivity on startup (non-fatal in serverless)
+pool.query('SELECT 1').then(() => console.log('✅ Connected to Supabase PostgreSQL')).catch(err => console.error('⚠️ DB ping failed:', err.message));
+
+// Alias so all existing code using client.query() keeps working
+const client = { query: (t, v) => pool.query(t, v) };
 
 // ─── Auth Middleware ──────────────────────────────────────────────────────────
 function requireAuth(req, res, next) {
@@ -640,9 +649,12 @@ if (!process.env.VERCEL) {
     });
 }
 
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-    console.log(`Backend server running on http://localhost:${PORT}`);
-});
+// ─── Start server (not in Vercel serverless) ─────────────────────────────────
+if (!process.env.VERCEL) {
+    const PORT = process.env.PORT || 3001;
+    app.listen(PORT, () => {
+        console.log(`Backend server running on http://localhost:${PORT}`);
+    });
+}
 
 export default app;
