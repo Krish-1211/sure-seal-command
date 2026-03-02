@@ -3,7 +3,7 @@ import { PerformanceRing } from "@/components/PerformanceRing";
 import { NextStopCard } from "@/components/NextStopCard";
 import { SalesTrend } from "@/components/SalesTrend";
 import { SyncIndicator } from "@/components/SyncIndicator";
-import { Bell, Search, Package, MapPin, Loader2, DollarSign } from "lucide-react";
+import { Bell, Search, Package, MapPin, Loader2, DollarSign, MessageCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -15,6 +15,18 @@ const SalesmanDashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  // Unread message count for badge
+  const { data: messages = [] } = useQuery({
+    queryKey: ['messages'],
+    queryFn: async () => {
+      const res = await apiFetch('/api/messages');
+      if (!res.ok) return [];
+      return res.json();
+    },
+    refetchInterval: 15000
+  });
+  const unreadCount = messages.filter((m: any) => !m.isRead && m.toUserId === user?.id).length;
+
   return (
     <>
       <header className="bg-primary px-5 pt-6 pb-8">
@@ -25,8 +37,16 @@ const SalesmanDashboard = () => {
           </div>
           <div className="flex items-center gap-3">
             <SyncIndicator status="synced" />
-            <button className="h-9 w-9 rounded-full bg-primary-foreground/10 flex items-center justify-center text-primary-foreground hover:bg-primary-foreground/20 transition-colors">
-              <Bell className="h-4 w-4" />
+            <button
+              onClick={() => navigate('/messages')}
+              className="relative h-9 w-9 rounded-full bg-primary-foreground/10 flex items-center justify-center text-primary-foreground hover:bg-primary-foreground/20 transition-colors"
+            >
+              <MessageCircle className="h-4 w-4" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
             </button>
           </div>
         </div>

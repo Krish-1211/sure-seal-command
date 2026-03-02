@@ -1,5 +1,5 @@
 import { MobileLayout } from "@/components/layout/MobileLayout";
-import { User, FileText, Settings, HelpCircle, LogOut, ChevronRight, History, BarChart3, Download, MessageCircle, Target } from "lucide-react";
+import { User, FileText, Settings, HelpCircle, LogOut, ChevronRight, History, BarChart3, Download, Target } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -11,7 +11,6 @@ const menuSections = [
       { id: "profile", icon: User, label: "My Profile", subtitle: "Manage your details" },
       { id: "analytics", icon: BarChart3, label: "My Analytics", subtitle: "Performance & commission" },
       { id: "history", icon: History, label: "Order History", subtitle: "All past orders & invoices" },
-      { id: "messages", icon: MessageCircle, label: "Messages", subtitle: "Chat with your team" },
     ],
   },
   {
@@ -58,8 +57,6 @@ const More = () => {
       toast.success(`Weekly report generated and emailed to you.`);
     } else if (id === "pricing") {
       navigate("/pricing-management");
-    } else if (id === "messages") {
-      navigate("/messages");
     } else if (id === "targets") {
       navigate("/targets");
     } else {

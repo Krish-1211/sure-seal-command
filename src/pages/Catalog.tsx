@@ -1,6 +1,6 @@
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { ProductCard } from "@/components/ProductCard";
-import { Search, SlidersHorizontal, Scan, Loader2, Tag } from "lucide-react";
+import { Search, SlidersHorizontal, Loader2, Tag } from "lucide-react";
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Product } from "@/lib/products";
@@ -52,9 +52,6 @@ const Catalog = () => {
       <header className="bg-card border-b border-border px-5 pt-6 pb-4 sticky top-0 z-10">
         <div className="flex items-center justify-between mb-3">
           <h1 className="text-lg font-heading font-bold text-foreground">Catalog</h1>
-          <button className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary hover:bg-primary/20 transition-colors">
-            <Scan className="h-4 w-4" />
-          </button>
         </div>
 
         {/* Pricing Level Selector */}
