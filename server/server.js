@@ -552,8 +552,55 @@ app.post("/api/pricing-levels/:id/import-csv", requireAuth, requireAdmin, upload
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// ─── Feature 9: Reorder — POST reorder based on past order ───────────────────
-// (Handled client-side by pre-populating cart from order items — no backend endpoint needed)
+// ─── Feature 9: Reorder — handled client-side ────────────────────────────────
+
+// ─── Feature 7: Check-ins (with optional photo) ──────────────────────────────
+app.get("/api/check-ins", requireAuth, async (req, res) => {
+    try {
+        let query = `
+            SELECT c.*, u.name as user_name
+            FROM check_ins c LEFT JOIN users u ON c.user_id = u.id
+        `;
+        const values = [];
+        if (req.user.role !== 'admin') {
+            query += ` WHERE c.user_id = $1`;
+            values.push(req.user.id);
+        }
+        query += ` ORDER BY c.created_at DESC LIMIT 100`;
+        const result = await client.query(query, values);
+        res.json(result.rows.map(r => ({
+            id: r.id, userId: r.user_id, userName: r.user_name,
+            customerId: r.customer_id, customerName: r.customer_name,
+            notes: r.notes, hasPhoto: !!r.photo_data,
+            photoData: r.photo_data, createdAt: r.created_at
+        })));
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post("/api/check-ins", requireAuth, async (req, res) => {
+    try {
+        const { customerId, customerName, notes, photoData } = req.body;
+        if (!customerName) return res.status(400).json({ error: 'customerName is required' });
+        const result = await client.query(
+            `INSERT INTO check_ins (user_id, customer_id, customer_name, notes, photo_data)
+             VALUES ($1,$2,$3,$4,$5) RETURNING id, created_at`,
+            [req.user.id, customerId || null, customerName, notes || null, photoData || null]
+        );
+        // Update last_visit on the customer
+        if (customerId) {
+            await client.query(
+                `UPDATE customers SET last_visit = now() WHERE id = $1`,
+                [customerId]
+            );
+        }
+        res.status(201).json({
+            id: result.rows[0].id,
+            createdAt: result.rows[0].created_at,
+            message: 'Check-in recorded'
+        });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 
 // ─── Static serving (production) ─────────────────────────────────────────────
 if (!process.env.VERCEL) {

@@ -6,6 +6,7 @@ interface NextStopCardProps {
   address: string;
   priority: "high" | "medium" | "low";
   eta: string;
+  onNavigate?: () => void;
 }
 
 const priorityStyles = {
@@ -20,7 +21,7 @@ const priorityLabels = {
   low: "Low",
 };
 
-export function NextStopCard({ storeName, address, priority, eta }: NextStopCardProps) {
+export function NextStopCard({ storeName, address, priority, eta, onNavigate }: NextStopCardProps) {
   return (
     <div className="bg-card rounded-lg p-5 shadow-card animate-slide-up" style={{ animationDelay: "0.1s" }}>
       <div className="flex items-center justify-between mb-3">
@@ -44,10 +45,14 @@ export function NextStopCard({ storeName, address, priority, eta }: NextStopCard
           </div>
         </div>
       </div>
-      <Button className="w-full bg-primary text-primary-foreground hover:bg-primary/90 gap-2 h-10 text-sm font-heading font-semibold">
+      <Button
+        onClick={onNavigate}
+        className="w-full bg-primary text-primary-foreground hover:bg-primary/90 gap-2 h-10 text-sm font-heading font-semibold"
+      >
         <Navigation className="h-4 w-4" />
-        Get Directions
+        View Route Plan
       </Button>
     </div>
   );
 }
+

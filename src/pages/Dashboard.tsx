@@ -27,6 +27,20 @@ const SalesmanDashboard = () => {
   });
   const unreadCount = messages.filter((m: any) => !m.isRead && m.toUserId === user?.id).length;
 
+  // Most overdue customer for NextStopCard
+  const { data: customers = [] } = useQuery({
+    queryKey: ['customers'],
+    queryFn: async () => {
+      const res = await apiFetch('/api/customers');
+      if (!res.ok) return [];
+      return res.json();
+    }
+  });
+  const nextStop = [...customers].sort((a: any, b: any) => {
+    const daysSince = (d: string | null) => d ? Math.floor((Date.now() - new Date(d).getTime()) / 86400000) : 999;
+    return daysSince(b.lastVisit || b.last_visit) - daysSince(a.lastVisit || a.last_visit);
+  })[0] as any;
+
   return (
     <>
       <header className="bg-primary px-5 pt-6 pb-8">
@@ -62,12 +76,23 @@ const SalesmanDashboard = () => {
 
       <div className="px-4 -mt-3 space-y-3 pb-8">
         <PerformanceRing percentage={67} revenue="$24,500" orders={18} pending={3} />
-        <NextStopCard
-          storeName="Bunnings Port Melbourne"
-          address="501 Williamstown Rd, Port Melbourne, VIC"
-          priority="high"
-          eta="12 min"
-        />
+        {nextStop ? (
+          <NextStopCard
+            storeName={nextStop.name}
+            address={nextStop.address || nextStop.street || 'Address not set'}
+            priority="high"
+            eta="Tap to navigate"
+            onNavigate={() => navigate('/route')}
+          />
+        ) : (
+          <NextStopCard
+            storeName="No customers assigned"
+            address="Add customers to get started"
+            priority="low"
+            eta="—"
+            onNavigate={() => navigate('/customers')}
+          />
+        )}
         <SalesTrend />
 
         <div className="bg-card rounded-lg p-5 shadow-card animate-slide-up" style={{ animationDelay: "0.3s" }}>
@@ -83,18 +108,18 @@ const SalesmanDashboard = () => {
               <span className="text-[10px] font-body font-medium text-foreground">New Order</span>
             </button>
             <button
-              onClick={() => toast.success("Checked in to Bunnings Port Melbourne!")}
+              onClick={() => navigate("/route")}
               className="flex flex-col items-center gap-1.5 py-3 rounded-lg bg-muted hover:bg-muted/80 transition-colors"
             >
               <span className="text-xl">📍</span>
               <span className="text-[10px] font-body font-medium text-foreground">Check In</span>
             </button>
             <button
-              onClick={() => toast.info("Barcode scanner activated")}
+              onClick={() => navigate("/route")}
               className="flex flex-col items-center gap-1.5 py-3 rounded-lg bg-muted hover:bg-muted/80 transition-colors"
             >
-              <span className="text-xl">📷</span>
-              <span className="text-[10px] font-body font-medium text-foreground">Scan Code</span>
+              <span className="text-xl">🗺️</span>
+              <span className="text-[10px] font-body font-medium text-foreground">Route Plan</span>
             </button>
           </div>
         </div>
@@ -146,6 +171,7 @@ const SalesmanDashboard = () => {
 
 const AdminDashboard = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const { data: orders = [], isLoading } = useQuery({
     queryKey: ['admin-orders'],
@@ -155,6 +181,18 @@ const AdminDashboard = () => {
       return res.json();
     }
   });
+
+  // Unread message count for badge
+  const { data: messages = [] } = useQuery({
+    queryKey: ['messages'],
+    queryFn: async () => {
+      const res = await apiFetch('/api/messages');
+      if (!res.ok) return [];
+      return res.json();
+    },
+    refetchInterval: 15000
+  });
+  const unreadCount = messages.filter((m: any) => !m.isRead && m.toUserId === user?.id).length;
 
   const totalRevenue = orders.reduce((acc: number, val: any) => acc + (Number(val.grandTotal) || 0), 0);
 
@@ -166,6 +204,17 @@ const AdminDashboard = () => {
             <p className="text-primary-foreground/70 text-xs font-body">Admin Dashboard</p>
             <h1 className="text-lg font-heading font-bold text-primary-foreground">{user?.name}</h1>
           </div>
+          <button
+            onClick={() => navigate('/messages')}
+            className="relative h-9 w-9 rounded-full bg-primary-foreground/10 flex items-center justify-center text-primary-foreground hover:bg-primary-foreground/20 transition-colors"
+          >
+            <MessageCircle className="h-4 w-4" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
         </div>
         <div className="grid grid-cols-2 gap-3 mt-4">
           <div className="bg-primary-foreground/10 rounded-xl p-4">

@@ -23,6 +23,7 @@ import NotFound from "./pages/NotFound";
 import PricingManagement from "./pages/PricingManagement";
 import Messages from "./pages/Messages";
 import TargetManagement from "./pages/TargetManagement";
+import VisitRoute from "./pages/VisitRoute";
 
 const queryClient = new QueryClient();
 
@@ -59,6 +60,7 @@ const App = () => (
                 <Route path="/pricing-management" element={<ProtectedRoute><PricingManagement /></ProtectedRoute>} />
                 <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
                 <Route path="/targets" element={<ProtectedRoute><TargetManagement /></ProtectedRoute>} />
+                <Route path="/route" element={<ProtectedRoute><VisitRoute /></ProtectedRoute>} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>

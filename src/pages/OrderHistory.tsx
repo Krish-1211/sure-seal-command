@@ -1,5 +1,6 @@
 import { MobileLayout } from "@/components/layout/MobileLayout";
-import { ChevronLeft, Package, Search, Calendar, Filter, Loader2, RotateCcw, XCircle, Clock, Lock } from "lucide-react";
+import { ChevronLeft, Package, Search, Calendar, Filter, Loader2, RotateCcw, XCircle, Clock, Lock, FileDown } from "lucide-react";
+import { generateInvoicePdf } from "@/lib/generateInvoicePdf";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -167,6 +168,16 @@ export default function OrderHistory() {
                                         >
                                             <RotateCcw className="h-3.5 w-3.5" />
                                             Reorder
+                                        </button>
+
+                                        {/* PDF Invoice (Feature 10) */}
+                                        <button
+                                            onClick={() => generateInvoicePdf(order)}
+                                            className="flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg bg-muted text-foreground text-xs font-bold hover:bg-muted/70 transition-colors"
+                                            title="Download PDF Invoice"
+                                        >
+                                            <FileDown className="h-3.5 w-3.5" />
+                                            PDF
                                         </button>
 
                                         {/* Cancel within window (Feature 3) */}
