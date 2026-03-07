@@ -147,43 +147,45 @@ const Cart = () => {
       <div className="px-4 py-3 space-y-2">
 
         {/* Customer Selection Card */}
-        <div className="bg-card rounded-xl p-4 shadow-card border border-border/50">
-          <h3 className="text-[10px] font-heading font-bold uppercase tracking-wider text-muted-foreground mb-3">Customer for this Order</h3>
+        {user?.role !== 'customer' && (
+          <div className="bg-card rounded-xl p-4 shadow-card border border-border/50">
+            <h3 className="text-[10px] font-heading font-bold uppercase tracking-wider text-muted-foreground mb-3">Customer for this Order</h3>
 
-          {selectedCustomer ? (
-            <div className="flex items-start gap-3">
-              <div className="h-10 w-10 rounded-full bg-success/10 flex items-center justify-center text-success shrink-0">
-                <CheckCircle2 className="h-5 w-5" />
+            {selectedCustomer ? (
+              <div className="flex items-start gap-3">
+                <div className="h-10 w-10 rounded-full bg-success/10 flex items-center justify-center text-success shrink-0">
+                  <CheckCircle2 className="h-5 w-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-heading font-bold text-foreground truncate">{selectedCustomer.name}</p>
+                  <p className="text-[10px] text-muted-foreground">{selectedCustomer.address}</p>
+                  {selectedCustomer.phone && <p className="text-[10px] text-muted-foreground">{selectedCustomer.phone}</p>}
+                  {selectedCustomer.email && <p className="text-[10px] text-muted-foreground">{selectedCustomer.email}</p>}
+                </div>
+                <button
+                  onClick={() => setShowCustomerPicker(true)}
+                  className="text-[10px] font-heading font-bold text-primary hover:underline shrink-0"
+                >
+                  Change
+                </button>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-heading font-bold text-foreground truncate">{selectedCustomer.name}</p>
-                <p className="text-[10px] text-muted-foreground">{selectedCustomer.address}</p>
-                {selectedCustomer.phone && <p className="text-[10px] text-muted-foreground">{selectedCustomer.phone}</p>}
-                {selectedCustomer.email && <p className="text-[10px] text-muted-foreground">{selectedCustomer.email}</p>}
-              </div>
+            ) : (
               <button
                 onClick={() => setShowCustomerPicker(true)}
-                className="text-[10px] font-heading font-bold text-primary hover:underline shrink-0"
+                className="w-full flex items-center gap-3 p-3 rounded-lg border-2 border-dashed border-border hover:border-primary/40 hover:bg-muted/30 transition-all"
               >
-                Change
+                <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
+                  <UserPlus className="h-5 w-5" />
+                </div>
+                <div className="text-left">
+                  <p className="text-sm font-heading font-bold text-foreground">Select or Add Customer</p>
+                  <p className="text-[10px] text-muted-foreground">Tap to choose who this order is for</p>
+                </div>
+                <ChevronDown className="h-4 w-4 text-muted-foreground ml-auto" />
               </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setShowCustomerPicker(true)}
-              className="w-full flex items-center gap-3 p-3 rounded-lg border-2 border-dashed border-border hover:border-primary/40 hover:bg-muted/30 transition-all"
-            >
-              <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
-                <UserPlus className="h-5 w-5" />
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-heading font-bold text-foreground">Select or Add Customer</p>
-                <p className="text-[10px] text-muted-foreground">Tap to choose who this order is for</p>
-              </div>
-              <ChevronDown className="h-4 w-4 text-muted-foreground ml-auto" />
-            </button>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
         {/* Customer Picker Modal */}
         {showCustomerPicker && (

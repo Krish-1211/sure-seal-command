@@ -5,6 +5,7 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Product } from "@/lib/products";
 import { useCustomer } from "@/contexts/CustomerContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/apiFetch";
 
 const Catalog = () => {
@@ -20,6 +21,7 @@ const Catalog = () => {
     }
   });
 
+  const { user } = useAuth();
   const { pricingLevels, selectedPricingLevelId, setSelectedPricingLevelId, getAdjustedPrice } = useCustomer();
 
   const categories = useMemo(() => {
@@ -55,19 +57,21 @@ const Catalog = () => {
         </div>
 
         {/* Pricing Level Selector */}
-        <div className="flex items-center gap-2 mb-3 p-2.5 rounded-xl bg-muted/60 border border-border/50">
-          <Tag className="h-4 w-4 text-primary shrink-0" />
-          <span className="text-[10px] font-heading font-bold uppercase tracking-wider text-muted-foreground shrink-0">Price Level</span>
-          <select
-            value={selectedPricingLevelId}
-            onChange={(e) => setSelectedPricingLevelId(e.target.value)}
-            className="flex-1 h-7 px-2 rounded-md bg-card border border-border text-xs font-heading font-bold text-foreground outline-none focus:ring-2 focus:ring-primary/40"
-          >
-            {pricingLevels.map((level: any) => (
-              <option key={level.id} value={level.id}>{level.name}</option>
-            ))}
-          </select>
-        </div>
+        {user?.role !== "customer" && (
+          <div className="flex items-center gap-2 mb-3 p-2.5 rounded-xl bg-muted/60 border border-border/50">
+            <Tag className="h-4 w-4 text-primary shrink-0" />
+            <span className="text-[10px] font-heading font-bold uppercase tracking-wider text-muted-foreground shrink-0">Price Level</span>
+            <select
+              value={selectedPricingLevelId}
+              onChange={(e) => setSelectedPricingLevelId(e.target.value)}
+              className="flex-1 h-7 px-2 rounded-md bg-card border border-border text-xs font-heading font-bold text-foreground outline-none focus:ring-2 focus:ring-primary/40"
+            >
+              {pricingLevels.map((level: any) => (
+                <option key={level.id} value={level.id}>{level.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="flex gap-2">
           <div className="relative flex-1">

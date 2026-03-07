@@ -17,12 +17,23 @@ const adminNavItems = [
   { path: "/more", icon: MoreHorizontal, label: "More" },
 ];
 
+const customerNavItems = [
+  { path: "/", icon: LayoutDashboard, label: "Dashboard" },
+  { path: "/catalog", icon: Package, label: "Catalog" },
+  { path: "/cart", icon: ShoppingCart, label: "Cart" },
+  { path: "/more", icon: MoreHorizontal, label: "More" },
+];
+
 export function BottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const navItems = user?.role === "admin" ? adminNavItems : salesNavItems;
+  const navItems = user?.role === "admin"
+    ? adminNavItems
+    : user?.role === "customer"
+      ? customerNavItems
+      : salesNavItems;
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border safe-bottom shadow-elevated">

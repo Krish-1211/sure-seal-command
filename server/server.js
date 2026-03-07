@@ -117,12 +117,42 @@ app.post("/api/login", async (req, res) => {
             return res.status(400).json({ error: "Username and password are required" });
         }
 
-        const result = await client.query(
-            'SELECT id, username, name, role, region, phone, email, password as pwd FROM users WHERE username = $1',
-            [username.toLowerCase().trim()]
+        const usernameLower = username.toLowerCase().trim();
+
+        // First, try to log in as a user (salesperson/admin)
+        let result = await client.query(
+            'SELECT id, username, name, role, region, phone, email, password as pwd FROM users WHERE LOWER(username) = $1',
+            [usernameLower]
         );
 
         if (result.rows.length === 0) {
+            // Check if it's a customer logging in directly (Demo feature)
+            const cRes = await client.query('SELECT * FROM customers WHERE (LOWER(email) = $1 AND email IS NOT NULL AND email != \'\') OR LOWER(name) = $1', [usernameLower]);
+            if (cRes.rows.length > 0) {
+                const customer = cRes.rows[0];
+                if (password !== 'password' && password !== 'customer123') { // Generic demo password for customers
+                    return res.status(401).json({ error: "Invalid credentials" });
+                }
+                const token = jwt.sign(
+                    { id: customer.id, name: customer.name, role: 'customer', customerId: customer.id },
+                    JWT_SECRET_FINAL,
+                    { expiresIn: '12h' }
+                );
+                return res.json({
+                    token,
+                    user: {
+                        id: customer.id,
+                        username: customer.email,
+                        name: customer.name,
+                        role: 'customer',
+                        customerId: customer.id,
+                        pricingLevelId: customer.pricing_level_id,
+                        address: customer.address,
+                        phone: customer.phone,
+                        email: customer.email
+                    }
+                });
+            }
             return res.status(401).json({ error: "Invalid credentials" });
         }
 
@@ -317,6 +347,56 @@ app.delete("/api/pricing-levels/:id", requireAuth, requireAdmin, async (req, res
     }
 });
 
+// ─── Promotions ───────────────────────────────────────────────────────────────
+
+app.get("/api/promotions", async (req, res) => {
+    try {
+        const result = await client.query('SELECT * FROM promotions ORDER BY created_at DESC');
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post("/api/promotions", requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const { title, description, image_url, active } = req.body;
+        if (!title) return res.status(400).json({ error: "Title is required" });
+
+        const result = await client.query(
+            'INSERT INTO promotions (title, description, image_url, active) VALUES ($1, $2, $3, $4) RETURNING *',
+            [title.trim(), description?.trim() || '', image_url?.trim() || '', active ?? true]
+        );
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.put("/api/promotions/:id", requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { title, description, image_url, active } = req.body;
+        const result = await client.query(
+            'UPDATE promotions SET title = $1, description = $2, image_url = $3, active = $4 WHERE id = $5 RETURNING *',
+            [title.trim(), description?.trim() || '', image_url?.trim() || '', active ?? true, id]
+        );
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete("/api/promotions/:id", requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        await client.query('DELETE FROM promotions WHERE id = $1', [id]);
+        res.status(204).send();
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ─── Orders ───────────────────────────────────────────────────────────────────
 
 // GET /api/orders — server-side filtering by userId for salesmen (fix #4)
@@ -330,7 +410,10 @@ app.get("/api/orders", requireAuth, async (req, res) => {
         const values = [];
 
         // Salesmen only see their own orders — filter at SQL level, not client-side
-        if (req.user.role !== 'admin') {
+        if (req.user.role === 'customer') {
+            query += ` WHERE o.customer_id = $1`;
+            values.push(req.user.id);
+        } else if (req.user.role !== 'admin') {
             query += ` WHERE o.user_id = $1`;
             values.push(req.user.id);
         }

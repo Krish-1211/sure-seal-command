@@ -29,7 +29,10 @@ export default function OrderHistory() {
 
     // Server already filters by role via JWT — this is an extra client-side safety check
     const filteredOrders = orders.filter((o: any) => {
-        const matchesRole = user?.role === 'admin' || o.userId === user?.id;
+        const matchesRole = user?.role === 'admin'
+            || (user?.role === 'customer' && o.customerId === user?.id)
+            || (user?.role === 'salesman' && o.userId === user?.id);
+
         if (!search) return matchesRole;
         const q = search.toLowerCase();
         return matchesRole && (

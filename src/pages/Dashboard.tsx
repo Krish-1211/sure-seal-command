@@ -3,8 +3,9 @@ import { PerformanceRing } from "@/components/PerformanceRing";
 import { NextStopCard } from "@/components/NextStopCard";
 import { SalesTrend } from "@/components/SalesTrend";
 import { SyncIndicator } from "@/components/SyncIndicator";
-import { Bell, Search, Package, MapPin, Loader2, DollarSign, MessageCircle } from "lucide-react";
+import { Bell, Search, Package, MapPin, Loader2, DollarSign, MessageCircle, RotateCcw, ChevronRight } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCart } from "@/contexts/CartContext";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
@@ -291,12 +292,153 @@ const AdminDashboard = () => {
   );
 }
 
+const CustomerDashboard = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { loadCart } = useCart();
+
+  const { data: orders = [], isLoading: isLoadingOrders } = useQuery({
+    queryKey: ['customer-orders'],
+    queryFn: async () => {
+      const res = await apiFetch('/api/orders');
+      if (!res.ok) throw new Error("Failed to fetch orders");
+      return res.json();
+    }
+  });
+
+  const { data: promotions = [] } = useQuery({
+    queryKey: ['promotions'],
+    queryFn: async () => {
+      const res = await fetch('/api/promotions');
+      if (!res.ok) throw new Error("Failed to fetch promotions");
+      return res.json();
+    }
+  });
+
+  const handleReorder = (order: any) => {
+    const cartItems = order.items?.map((item: any) => ({
+      product: { id: item.variant?.sku, name: item.product?.name || 'Unknown Product', category: '', description: '' },
+      variant: {
+        sku: item.variant?.sku,
+        name: item.variant?.name || 'Default',
+        price: item.variant?.price || 0,
+        product_id: ''
+      },
+      quantity: item.quantity
+    })) || [];
+
+    if (cartItems.length === 0) {
+      toast.error("No items to reorder");
+      return;
+    }
+    loadCart(cartItems);
+    toast.success(`${cartItems.length} item(s) loaded into cart!`);
+    navigate('/cart');
+  };
+
+  const latestOrder = orders.length > 0 ? orders[0] : null;
+
+  return (
+    <>
+      <header className="bg-primary px-5 pt-6 pb-8">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <p className="text-primary-foreground/70 text-xs font-body">Customer Portal</p>
+            <h1 className="text-lg font-heading font-bold text-primary-foreground">{user?.name}</h1>
+          </div>
+          <button
+            onClick={() => navigate('/messages')}
+            className="relative h-9 w-9 rounded-full bg-primary-foreground/10 flex items-center justify-center text-primary-foreground hover:bg-primary-foreground/20 transition-colors"
+          >
+            <MessageCircle className="h-4 w-4" />
+          </button>
+        </div>
+      </header>
+
+      <div className="px-4 -mt-3 space-y-4 pb-8">
+        <div className="bg-card rounded-xl p-4 shadow-card animate-slide-up" style={{ animationDelay: "0.1s" }}>
+          <h3 className="text-xs font-heading font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+            Quick Actions
+          </h3>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => navigate("/catalog")}
+              className="flex flex-col items-center justify-center gap-2 py-5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground transition-colors"
+            >
+              <Package className="w-6 h-6" />
+              <span className="text-sm font-heading font-bold">New Order</span>
+            </button>
+            <button
+              onClick={() => navigate("/history")}
+              className="flex flex-col items-center justify-center gap-2 py-5 rounded-xl bg-muted hover:bg-muted/80 text-foreground transition-colors border border-border/50"
+            >
+              <Search className="w-6 h-6 text-muted-foreground" />
+              <span className="text-sm font-heading font-bold text-muted-foreground">Order History</span>
+            </button>
+          </div>
+        </div>
+
+        {promotions.filter((p: any) => p.active).length > 0 && (
+          <div className="pt-2 animate-slide-up md:w-[70%] lg:w-[60%] mx-auto" style={{ animationDelay: "0.15s" }}>
+            <div className="flex gap-4 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-2 items-center">
+              {promotions.filter((p: any) => p.active).map((promo: any) => (
+                <div key={promo.id} className="min-w-[100%] snap-center bg-card rounded-[1.25rem] overflow-hidden shadow-lg border border-border/50 flex flex-col relative aspect-[2/1] md:aspect-[2.5/1] bg-black">
+                  {promo.image_url && (
+                    <div className="absolute inset-0 w-full h-full">
+                      <img src={promo.image_url} alt={promo.title} className="w-full h-full object-cover opacity-90" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-black/10"></div>
+                      <div className="absolute inset-0 bg-gradient-to-tr from-black/60 to-transparent mix-blend-multiply"></div>
+                    </div>
+                  )}
+                  <div className={`p-5 flex flex-col justify-end h-full z-10 w-full text-center ${promo.image_url ? 'absolute inset-0' : 'relative'}`}>
+                    <h3 className={`text-xl font-heading font-black leading-tight tracking-tight mb-1.5 drop-shadow-md lg:text-3xl ${promo.image_url ? 'text-white' : 'text-primary'}`}>{promo.title}</h3>
+                    <p className={`text-sm lg:text-base leading-snug drop-shadow line-clamp-2 max-w-[90%] mx-auto ${promo.image_url ? 'text-gray-200' : 'text-muted-foreground'}`}>{promo.description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {promotions.filter((p: any) => p.active).length > 1 && (
+              <div className="flex justify-center gap-1.5 mt-2">
+                {promotions.filter((p: any) => p.active).map((_: any, i: number) => (
+                  <div key={i} className="w-1.5 h-1.5 rounded-full bg-primary/30"></div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {latestOrder && (
+          <div className="pt-2 animate-slide-up" style={{ animationDelay: "0.2s" }}>
+            <div className="bg-accent/10 border border-accent/20 rounded-2xl p-4 relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-4 opacity-10">
+                <RotateCcw className="w-24 h-24 text-accent" />
+              </div>
+              <div className="relative z-10 w-full">
+                <h3 className="text-sm font-heading font-bold uppercase tracking-wider text-accent mb-1">Buy It Again</h3>
+                <p className="text-xl font-heading font-black text-foreground mb-1">Latest Order #{latestOrder.orderNumber ?? latestOrder.id.slice(-6)}</p>
+                <p className="text-xs text-muted-foreground mb-4">{new Date(latestOrder.createdAt).toLocaleDateString()} • {formatCurrency(latestOrder.grandTotal)}</p>
+                <button
+                  onClick={() => handleReorder(latestOrder)}
+                  className="w-full h-12 rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground font-heading font-bold flex items-center justify-center gap-2 shadow-sm"
+                >
+                  <RotateCcw className="w-4 h-4" /> Repeat Order
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+      </div>
+    </>
+  );
+};
+
 const Dashboard = () => {
   const { user } = useAuth();
 
   return (
     <MobileLayout>
-      {user?.role === "admin" ? <AdminDashboard /> : <SalesmanDashboard />}
+      {user?.role === "admin" ? <AdminDashboard /> : user?.role === "customer" ? <CustomerDashboard /> : <SalesmanDashboard />}
     </MobileLayout>
   );
 };

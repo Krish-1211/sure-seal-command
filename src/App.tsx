@@ -25,6 +25,7 @@ import Messages from "./pages/Messages";
 import TargetManagement from "./pages/TargetManagement";
 import VisitRoute from "./pages/VisitRoute";
 import FleetMap from "./pages/FleetMap";
+import PromotionsManagement from "./pages/PromotionsManagement";
 
 const queryClient = new QueryClient();
 
@@ -59,6 +60,7 @@ const App = () => (
                 <Route path="/history" element={<ProtectedRoute><OrderHistory /></ProtectedRoute>} />
                 <Route path="/help" element={<ProtectedRoute><HelpSupport /></ProtectedRoute>} />
                 <Route path="/pricing-management" element={<ProtectedRoute><PricingManagement /></ProtectedRoute>} />
+                <Route path="/promotions-management" element={<ProtectedRoute><PromotionsManagement /></ProtectedRoute>} />
                 <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
                 <Route path="/targets" element={<ProtectedRoute><TargetManagement /></ProtectedRoute>} />
                 <Route path="/route" element={<ProtectedRoute><VisitRoute /></ProtectedRoute>} />

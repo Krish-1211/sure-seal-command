@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from "react";
 
-export type Role = "admin" | "salesman";
+export type Role = "admin" | "salesman" | "customer";
 
 export interface User {
     id: string;
@@ -10,6 +10,9 @@ export interface User {
     region?: string;
     phone?: string;
     email?: string;
+    customerId?: string;
+    pricingLevelId?: string;
+    address?: string;
 }
 
 interface AuthContextType {
