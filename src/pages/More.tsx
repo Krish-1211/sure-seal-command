@@ -1,45 +1,68 @@
 import { MobileLayout } from "@/components/layout/MobileLayout";
-import { User, FileText, Settings, HelpCircle, LogOut, ChevronRight, History, BarChart3, Download, Target, Route, MapPin, Star } from "lucide-react";
+import { User, FileText, Settings, HelpCircle, LogOut, ChevronRight, History, BarChart3, Download, Target, Route, MapPin, Star, Smartphone } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { useState, useEffect } from "react";
 
-const menuSections = [
-  {
-    title: "Account",
-    items: [
-      { id: "profile", icon: User, label: "My Profile", subtitle: "Manage your details" },
-      { id: "analytics", icon: BarChart3, label: "My Analytics", subtitle: "Performance & commission" },
-      { id: "history", icon: History, label: "Order History", subtitle: "All past orders & invoices" },
-      { id: "route", icon: Route, label: "Today's Route", subtitle: "Visit schedule & check-ins" },
-    ],
-  },
-  {
-    title: "Tools",
-    items: [
-      { id: "export", icon: Download, label: "Export Data", subtitle: "Xero, QuickBooks formats" },
-      { id: "reports", icon: FileText, label: "Reports", subtitle: "Daily & weekly reports" },
-    ],
-  },
-  {
-    title: "Settings",
-    items: [
-      { id: "pricing", icon: FileText, label: "Pricing Management", subtitle: "Manage B2B levels (Admin)" },
-      { id: "promotions", icon: Star, label: "Offers Management", subtitle: "Manage promo banners (Admin)" },
-      { id: "targets", icon: Target, label: "Target Management", subtitle: "Set rep monthly targets (Admin)" },
-      { id: "fleet", icon: MapPin, label: "Fleet Tracker", subtitle: "Live rep GPS positions (Admin)" },
-      { id: "settings", icon: Settings, label: "App Settings", subtitle: "Sync, notifications, offline" },
-      { id: "help", icon: HelpCircle, label: "Help & Support", subtitle: "Contact & FAQs" },
-      { id: "logout", icon: LogOut, label: "Sign Out", subtitle: "" },
-    ],
-  },
-];
+let deferredPrompt: any = null;
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+  });
+}
 
 const More = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  const handleItemClick = (id: string, label: string) => {
+  const [isInstalled, setIsInstalled] = useState(
+    window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone
+  );
+
+  useEffect(() => {
+    const handleAppInstalled = () => {
+      setIsInstalled(true);
+      deferredPrompt = null;
+    };
+    window.addEventListener('appinstalled', handleAppInstalled);
+    return () => window.removeEventListener('appinstalled', handleAppInstalled);
+  }, []);
+
+  const menuSections = [
+    {
+      title: "Account",
+      items: [
+        { id: "profile", icon: User, label: "My Profile", subtitle: "Manage your details" },
+        { id: "analytics", icon: BarChart3, label: "My Analytics", subtitle: "Performance & commission" },
+        { id: "history", icon: History, label: "Order History", subtitle: "All past orders & invoices" },
+        { id: "route", icon: Route, label: "Today's Route", subtitle: "Visit schedule & check-ins" },
+      ],
+    },
+    {
+      title: "Tools",
+      items: [
+        { id: "install", icon: Smartphone, label: isInstalled ? "Installed" : "Install App", subtitle: "Install Sure Seal SFA on your device" },
+        { id: "export", icon: Download, label: "Export Data", subtitle: "Xero, QuickBooks formats" },
+        { id: "reports", icon: FileText, label: "Reports", subtitle: "Daily & weekly reports" },
+      ],
+    },
+    {
+      title: "Settings",
+      items: [
+        { id: "pricing", icon: FileText, label: "Pricing Management", subtitle: "Manage B2B levels (Admin)" },
+        { id: "promotions", icon: Star, label: "Offers Management", subtitle: "Manage promo banners (Admin)" },
+        { id: "targets", icon: Target, label: "Target Management", subtitle: "Set rep monthly targets (Admin)" },
+        { id: "fleet", icon: MapPin, label: "Fleet Tracker", subtitle: "Live rep GPS positions (Admin)" },
+        { id: "settings", icon: Settings, label: "App Settings", subtitle: "Sync, notifications, offline" },
+        { id: "help", icon: HelpCircle, label: "Help & Support", subtitle: "Contact & FAQs" },
+        { id: "logout", icon: LogOut, label: "Sign Out", subtitle: "" },
+      ],
+    },
+  ];
+
+  const handleItemClick = async (id: string, label: string) => {
     if (id === "logout") {
       logout();
       navigate("/login");
@@ -54,6 +77,20 @@ const More = () => {
       navigate("/history");
     } else if (id === "help") {
       navigate("/help");
+    } else if (id === "install") {
+      if (isInstalled) {
+        toast.info("The application is already installed on your device.");
+      } else if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+          setIsInstalled(true);
+          deferredPrompt = null;
+          toast.success("App installed successfully.");
+        }
+      } else {
+        toast.info("Installation not supported or already installed. You can install it via your browser's menu.");
+      }
     } else if (id === "export") {
       toast.success(`Spreadsheet exported and emailed to you.`);
     } else if (id === "reports") {
