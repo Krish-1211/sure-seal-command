@@ -119,6 +119,22 @@ export default function Messages() {
         endRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [conversation.length]);
 
+    // Mark messages as read when viewing the conversation
+    useEffect(() => {
+        if (!selectedUserId || !messages.length) return;
+        const unreadIds = messages
+            .filter((m: any) => m.fromUserId === selectedUserId && m.toUserId === user?.id && !m.isRead)
+            .map((m: any) => m.id);
+
+        if (unreadIds.length > 0) {
+            Promise.all(unreadIds.map(id => apiFetch(`/api/messages/${id}/read`, { method: 'PATCH' })))
+                .then(() => {
+                    queryClient.invalidateQueries({ queryKey: ['messages'] });
+                })
+                .catch(err => console.error("Failed to mark read:", err));
+        }
+    }, [selectedUserId, messages, user?.id, queryClient]);
+
     return (
         <MobileLayout>
             <header className="bg-card border-b border-border px-5 pt-6 pb-4 flex items-center gap-3 sticky top-0 z-10">
