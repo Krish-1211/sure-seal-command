@@ -1,15 +1,33 @@
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { useState } from "react";
-import { ChevronRight, ChevronLeft, MapPin, DollarSign, Package, TrendingUp, TrendingDown, Phone, Mail } from "lucide-react";
+import { ChevronRight, ChevronLeft, MapPin, DollarSign, Package, TrendingUp, TrendingDown, Phone, Mail, UserX, UserCheck } from "lucide-react";
 import { PerformanceRing } from "@/components/PerformanceRing";
 import { Button } from "@/components/ui/button";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { formatCurrency } from "@/lib/utils";
 import { apiFetch } from "@/lib/apiFetch";
 
 export default function SalesPortal() {
     const [selectedRep, setSelectedRep] = useState<any | null>(null);
+    const queryClient = useQueryClient();
+
+    const toggleStatusMutation = useMutation({
+        mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
+            const res = await apiFetch(`/api/users/${id}/status`, {
+                method: 'PATCH',
+                body: JSON.stringify({ active })
+            });
+            if (!res.ok) throw new Error("Failed to update status");
+            return res.json();
+        },
+        onSuccess: (data, variables) => {
+            queryClient.invalidateQueries({ queryKey: ['users'] });
+            setSelectedRep((prev: any) => prev && prev.id === variables.id ? { ...prev, active: data.active } : prev);
+            toast.success(data.active ? "Account activated" : "Account deactivated");
+        }
+    });
 
     const { data: users = [], isLoading: loadingUsers } = useQuery({
         queryKey: ['users'],
@@ -188,6 +206,29 @@ export default function SalesPortal() {
                                         <p className="text-[10px] text-muted-foreground/60 mt-1 uppercase tracking-wider">2 hrs ago</p>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+
+                        {/* Account Management */}
+                        <div className="pt-2">
+                            <h3 className="text-xs font-heading font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                                Account Management
+                            </h3>
+                            <div className="flex items-center justify-between p-4 bg-card rounded-2xl border border-border/50 shadow-sm">
+                                <div>
+                                    <p className="font-heading font-bold text-sm">Account Status</p>
+                                    <p className="text-xs text-muted-foreground">{selectedRep.active !== false ? "Active (Can login)" : "Deactivated (Locked out)"}</p>
+                                </div>
+                                <Button
+                                    variant={selectedRep.active !== false ? "destructive" : "default"}
+                                    size="sm"
+                                    onClick={() => {
+                                        const newStatus = selectedRep.active === false ? true : false;
+                                        toggleStatusMutation.mutate({ id: selectedRep.id, active: newStatus });
+                                    }}
+                                >
+                                    {selectedRep.active !== false ? <><UserX className="w-4 h-4 mr-2" /> Deactivate</> : <><UserCheck className="w-4 h-4 mr-2" /> Activate</>}
+                                </Button>
                             </div>
                         </div>
 

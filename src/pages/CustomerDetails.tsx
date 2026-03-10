@@ -29,7 +29,37 @@ export default function CustomerDetails() {
         }
     });
 
+    const { data: users = [] } = useQuery({
+        queryKey: ['users'],
+        queryFn: async () => {
+            const res = await apiFetch('/api/users');
+            if (!res.ok) throw new Error("Failed");
+            return res.json();
+        }
+    });
+    const reps = users.filter((u: any) => u.role === "salesman");
+
     const queryClient = useQueryClient();
+
+    const assignRepMutation = useMutation({
+        mutationFn: async ({ customerId, repId }: { customerId: string, repId: string }) => {
+            // Revert assignment if repId is empty
+            const data = repId ? { action: 'assign', customerId } : { action: 'unassign', customerId };
+            const endpointRef = repId || customer.assigned_sales_rep || customer.assignedSalesRep;
+            if (!endpointRef) return;
+            const res = await apiFetch(`/api/users/${endpointRef}/customers`, {
+                method: 'PATCH',
+                body: JSON.stringify(data)
+            });
+            if (!res.ok) throw new Error("Assignment failed");
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['customers'] });
+            toast.success("Sales rep assignment updated");
+        }
+    });
+
     const updateCustomer = useMutation({
         mutationFn: async ({ id, data }: { id: string, data: any }) => {
             const res = await apiFetch(`/api/customers/${id}`, {
@@ -151,6 +181,25 @@ export default function CustomerDetails() {
                         <option value="">Default Retail Pricing</option>
                         {pricingLevels.map((lvl: any) => (
                             <option key={lvl.id} value={lvl.id}>{lvl.name}</option>
+                        ))}
+                    </select>
+                </div>
+
+                {/* Sales Rep Selector */}
+                <div className="bg-card border border-border/50 rounded-2xl p-5 shadow-sm space-y-4">
+                    <h3 className="text-xs font-heading font-bold text-muted-foreground uppercase tracking-wider">Assigned Sales Rep</h3>
+                    <select
+                        className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm font-body"
+                        value={customer.assigned_sales_rep || customer.assignedSalesRep || ""}
+                        onChange={(e) => {
+                            if (customer.id) {
+                                assignRepMutation.mutate({ customerId: customer.id, repId: e.target.value });
+                            }
+                        }}
+                    >
+                        <option value="">Unassigned</option>
+                        {reps.map((rep: any) => (
+                            <option key={rep.id} value={rep.id}>{rep.name}</option>
                         ))}
                     </select>
                 </div>

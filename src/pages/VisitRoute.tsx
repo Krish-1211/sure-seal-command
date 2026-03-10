@@ -127,19 +127,55 @@ export default function VisitRoute() {
 
     const checkInMutation = useMutation({
         mutationFn: async ({ customerId, customerName }: { customerId: string; customerName: string }) => {
-            const res = await apiFetch('/api/check-ins', {
-                method: 'POST',
-                body: JSON.stringify({ customerId, customerName, notes, photoData })
-            });
-            if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
-            return res.json();
+            if (!navigator.onLine) {
+                const { getDB } = await import("@/lib/db");
+                const db = await getDB();
+                await db.put('check_ins_offline', {
+                    customerId, customerName, notes, photoBlob: photoData ? await (await fetch(photoData)).blob() : null,
+                    offline_id: crypto.randomUUID(),
+                    createdAt: new Date().toISOString()
+                });
+                return { offline: true };
+            }
+
+            const formData = new FormData();
+            formData.append('customerId', customerId);
+            formData.append('customerName', customerName);
+            if (notes) formData.append('notes', notes);
+            if (photoData) {
+                const r = await fetch(photoData);
+                const blob = await r.blob();
+                formData.append('photo', blob, 'photo.jpg');
+            }
+
+            try {
+                const res = await apiFetch('/api/check-ins', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
+                return res.json();
+            } catch (err) {
+                const { getDB } = await import("@/lib/db");
+                const db = await getDB();
+                await db.put('check_ins_offline', {
+                    customerId, customerName, notes, photoBlob: photoData ? await (await fetch(photoData)).blob() : null,
+                    offline_id: crypto.randomUUID(),
+                    createdAt: new Date().toISOString()
+                });
+                return { offline: true };
+            }
         },
-        onSuccess: (_, vars) => {
-            toast.success(`✅ Checked in to ${vars.customerName}`);
+        onSuccess: (data: any, vars) => {
+            if (data?.offline) {
+                toast.success("Saved Offline", { description: "Check-in will sync when back online." });
+            } else {
+                toast.success(`✅ Checked in to ${vars.customerName}`);
+            }
             setCheckingInId(null);
             setNotes("");
-            setPhotoPreview(null);
             setPhotoData(null);
+            setPhotoPreview(null);
             queryClient.invalidateQueries({ queryKey: ['customers'] });
             queryClient.invalidateQueries({ queryKey: ['check-ins'] });
         },
@@ -245,8 +281,15 @@ export default function VisitRoute() {
     }
 
     // ── MAIN ROUTE LIST ───────────────────────────────────────────────────────
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
     return (
         <MobileLayout>
+            {isIOS && user?.role !== 'admin' && (
+                <div className="bg-blue-500/10 text-blue-600 px-4 py-2 text-xs font-medium text-center border-b border-blue-500/20">
+                    Keep this screen open for live tracking. iOS does not support background GPS.
+                </div>
+            )}
             <header className="bg-card border-b border-border/50 px-5 pt-6 pb-4 sticky top-0 z-10">
                 <div className="flex items-center gap-3 mb-3">
                     <button onClick={() => navigate(-1)} className="h-10 w-10 -ml-2 rounded-full flex items-center justify-center hover:bg-muted transition-colors">

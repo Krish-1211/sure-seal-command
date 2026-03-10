@@ -13,6 +13,8 @@ interface CustomerContextType {
 
 const CustomerContext = createContext<CustomerContextType | undefined>(undefined);
 
+import { getDB } from "@/lib/db";
+
 export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const { user } = useAuth(); // Read user from AuthContext
     const [selectedCustomerState, setSelectedCustomerState] = useState<any | null>(null);
@@ -21,9 +23,18 @@ export const CustomerProvider: React.FC<{ children: ReactNode }> = ({ children }
     const { data: pricingLevels = [] } = useQuery({
         queryKey: ['pricing-levels'],
         queryFn: async () => {
-            const res = await fetch('/api/pricing-levels');
-            if (!res.ok) throw new Error("Failed");
-            return res.json();
+            if (!navigator.onLine) {
+                const db = await getDB();
+                return await db.getAll('pricing_levels');
+            }
+            try {
+                const res = await fetch('/api/pricing-levels');
+                if (!res.ok) throw new Error("Failed");
+                return res.json();
+            } catch (err) {
+                const db = await getDB();
+                return await db.getAll('pricing_levels');
+            }
         }
     });
 

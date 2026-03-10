@@ -17,6 +17,8 @@ interface Customer {
 
 type Filter = "all" | "visited" | "pending" | "overdue";
 
+import { getDB } from "@/lib/db";
+
 const Customers = () => {
   const [filter, setFilter] = useState<Filter>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -24,9 +26,18 @@ const Customers = () => {
   const { data: customers = [], isLoading } = useQuery<Customer[]>({
     queryKey: ['customers'],
     queryFn: async () => {
-      const res = await apiFetch('/api/customers');
-      if (!res.ok) throw new Error("Failed to fetch customers");
-      return res.json();
+      if (!navigator.onLine) {
+        const db = await getDB();
+        return await db.getAll('customers');
+      }
+      try {
+        const res = await apiFetch('/api/customers');
+        if (!res.ok) throw new Error("Failed to fetch customers");
+        return res.json();
+      } catch (err) {
+        const db = await getDB();
+        return await db.getAll('customers');
+      }
     }
   });
 

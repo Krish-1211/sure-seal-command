@@ -7,9 +7,15 @@ export async function apiFetch(url: string, options: RequestInit = {}): Promise<
     const token = localStorage.getItem("auth_token");
 
     const headers: Record<string, string> = {
-        "Content-Type": "application/json",
         ...(options.headers as Record<string, string> || {}),
     };
+
+    // Let the browser set Content-Type for FormData (includes boundary)
+    if (options.body && options.body instanceof FormData) {
+        delete headers['Content-Type'];
+    } else if (!headers['Content-Type']) {
+        headers['Content-Type'] = 'application/json';
+    }
 
     if (token) {
         headers["Authorization"] = `Bearer ${token}`;

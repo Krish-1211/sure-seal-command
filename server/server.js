@@ -6,6 +6,20 @@ import { fileURLToPath } from "url";
 import pg from "pg";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import cookieParser from "cookie-parser";
+import crypto from "crypto";
+import admin from "firebase-admin";
+
+if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+    try {
+        admin.initializeApp({
+            credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY))
+        });
+        console.log("Firebase Admin initialized");
+    } catch (e) {
+        console.error("Firebase Admin init failed:", e.message);
+    }
+}
 
 const { Pool } = pg;
 
@@ -13,8 +27,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin: true, credentials: true })); // Adjust CORS for cookies
 app.use(express.json());
+app.use(cookieParser());
 
 // ─── JWT Secret ─────────────────────────────────────────────────────────────
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -33,7 +48,7 @@ const pool = new Pool({
     connectionString,
     max: 5,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000,
+    connectionTimeoutMillis: 2000, // Reduced to 2000ms per 2.6 requirements
     ssl: { rejectUnauthorized: false }
 });
 
@@ -44,13 +59,22 @@ pool.query('SELECT 1').then(() => console.log('✅ Connected to Supabase Postgre
 const client = { query: (t, v) => pool.query(t, v) };
 
 // ─── Auth Middleware ──────────────────────────────────────────────────────────
-function requireAuth(req, res, next) {
+async function requireAuth(req, res, next) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1]; // Bearer <token>
     if (!token) return res.status(401).json({ error: "Unauthorised: No token provided" });
 
     try {
         const decoded = jwt.verify(token, JWT_SECRET_FINAL);
+
+        // Check if token jti or user_id has been revoked
+        if (decoded.jti) {
+            const check = await client.query('SELECT 1 FROM revoked_tokens WHERE jti = $1 OR user_id = $2 LIMIT 1', [decoded.jti, decoded.id]);
+            if (check.rows.length > 0) {
+                return res.status(401).json({ error: "Unauthorised: Token revoked" });
+            }
+        }
+
         req.user = decoded; // { id, name, role }
         next();
     } catch {
@@ -112,7 +136,7 @@ function validateOrder(body) {
 // POST /api/login
 app.post("/api/login", async (req, res) => {
     try {
-        const { username, password } = req.body;
+        const { username, password, fcmToken } = req.body;
         if (!username || !password) {
             return res.status(400).json({ error: "Username and password are required" });
         }
@@ -133,11 +157,28 @@ app.post("/api/login", async (req, res) => {
                 if (password !== 'password' && password !== 'customer123') { // Generic demo password for customers
                     return res.status(401).json({ error: "Invalid credentials" });
                 }
+                const jti = crypto.randomUUID();
                 const token = jwt.sign(
-                    { id: customer.id, name: customer.name, role: 'customer', customerId: customer.id },
+                    { id: customer.id, name: customer.name, role: 'customer', customerId: customer.id, jti },
                     JWT_SECRET_FINAL,
-                    { expiresIn: '12h' }
+                    { expiresIn: '8h' }
                 );
+                const refreshToken = jwt.sign({ id: customer.id, jti }, JWT_SECRET_FINAL, { expiresIn: '7d' });
+                res.cookie('refreshToken', refreshToken, {
+                    httpOnly: true,
+                    secure: process.env.NODE_ENV === 'production' || !!process.env.VERCEL,
+                    sameSite: 'Strict',
+                    maxAge: 7 * 24 * 60 * 60 * 1000
+                });
+
+                if (fcmToken) {
+                    await client.query(`
+                        INSERT INTO fcm_tokens (user_id, token) 
+                        VALUES ($1, $2)
+                        ON CONFLICT (token) DO UPDATE SET user_id = $1, updated_at = NOW()
+                    `, [customer.id, fcmToken]);
+                }
+
                 return res.json({
                     token,
                     user: {
@@ -157,18 +198,40 @@ app.post("/api/login", async (req, res) => {
         }
 
         const user = result.rows[0];
+
+        if (user && user.active === false) {
+            return res.status(401).json({ error: "Your account has been deactivated." });
+        }
+
         const passwordMatch = await bcrypt.compare(password, user.pwd);
 
         if (!passwordMatch) {
             return res.status(401).json({ error: "Invalid credentials" });
         }
 
+        const jti = crypto.randomUUID();
         // Issue JWT — never send password hash to client
         const token = jwt.sign(
-            { id: user.id, name: user.name, role: user.role },
+            { id: user.id, name: user.name, role: user.role, jti },
             JWT_SECRET_FINAL,
-            { expiresIn: '12h' }
+            { expiresIn: '8h' }
         );
+
+        const refreshToken = jwt.sign({ id: user.id, jti }, JWT_SECRET_FINAL, { expiresIn: '7d' });
+        res.cookie('refreshToken', refreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production' || !!process.env.VERCEL,
+            sameSite: 'Strict',
+            maxAge: 7 * 24 * 60 * 60 * 1000
+        });
+
+        if (fcmToken) {
+            await client.query(`
+                INSERT INTO fcm_tokens (user_id, token) 
+                VALUES ($1, $2)
+                ON CONFLICT (token) DO UPDATE SET user_id = $1, updated_at = NOW()
+            `, [user.id, fcmToken]);
+        }
 
         res.json({
             token,
@@ -206,11 +269,67 @@ app.get("/api/products", async (req, res) => {
     }
 });
 
+// DELETE /api/products/variants/:id — auth/admin required
+app.delete("/api/products/variants/:id", requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const variantRes = await client.query('DELETE FROM product_variants WHERE id = $1 RETURNING sku', [id]);
+        if (variantRes.rows.length > 0) {
+            const sku = variantRes.rows[0].sku;
+            await client.query('UPDATE pricing_levels SET prices = prices - $1 WHERE prices ? $1', [sku]);
+        }
+        res.status(204).send();
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // GET /api/pricing-levels — public (needed for Catalog price display)
 app.get("/api/pricing-levels", async (req, res) => {
     try {
         const result = await client.query('SELECT * FROM pricing_levels');
         res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST /api/auth/refresh
+app.post("/api/auth/refresh", async (req, res) => {
+    const refreshToken = req.cookies?.refreshToken;
+    if (!refreshToken) return res.status(401).json({ error: "No refresh token" });
+    try {
+        const decoded = jwt.verify(refreshToken, JWT_SECRET_FINAL);
+        const check = await client.query('SELECT 1 FROM revoked_tokens WHERE jti = $1 OR user_id = $2 LIMIT 1', [decoded.jti, decoded.id]);
+        if (check.rows.length > 0) return res.status(401).json({ error: "Token revoked" });
+
+        let userRes = await client.query('SELECT id, username, name, role FROM users WHERE id = $1', [decoded.id]);
+        let user = userRes.rows[0];
+        if (!user) {
+            userRes = await client.query('SELECT id, name FROM customers WHERE id = $1', [decoded.id]);
+            if (userRes.rows[0]) user = { ...userRes.rows[0], role: 'customer' };
+        }
+        if (!user) return res.status(401).json({ error: "User not found" });
+
+        const token = jwt.sign(
+            { id: user.id, name: user.name, role: user.role, jti: decoded.jti },
+            JWT_SECRET_FINAL,
+            { expiresIn: '8h' }
+        );
+        res.json({ token });
+    } catch {
+        res.status(403).json({ error: "Invalid refresh token" });
+    }
+});
+
+// POST /api/auth/logout
+app.post("/api/auth/logout", requireAuth, async (req, res) => {
+    try {
+        if (req.user.jti) {
+            await client.query('INSERT INTO revoked_tokens (jti) VALUES ($1) ON CONFLICT DO NOTHING', [req.user.jti]);
+        }
+        res.clearCookie('refreshToken');
+        res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -223,13 +342,19 @@ app.get("/api/pricing-levels", async (req, res) => {
 import multer from "multer";
 import { createReadStream } from "fs";
 import { unlink } from "fs/promises";
+import { createClient } from "@supabase/supabase-js";
 
-const upload = multer({ dest: '/tmp/' });
+const supabase = createClient(
+    process.env.SUPABASE_URL || 'https://djytzbcjouhzhrzetour.supabase.co',
+    process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy_key'
+);
+
+const upload = multer({ storage: multer.memoryStorage() });
 
 // GET /api/users — auth required
 app.get("/api/users", requireAuth, async (req, res) => {
     try {
-        const result = await client.query('SELECT id, username, name, role, region, phone, email, monthly_target, created_at FROM users');
+        const result = await client.query('SELECT id, username, name, role, region, phone, email, monthly_target, created_at, active FROM users');
         const mapped = result.rows.map(u => ({ ...u, monthlyTarget: parseFloat(u.monthly_target) || 20000 }));
         res.json(mapped);
     } catch (err) {
@@ -240,7 +365,15 @@ app.get("/api/users", requireAuth, async (req, res) => {
 // GET /api/customers — auth required
 app.get("/api/customers", requireAuth, async (req, res) => {
     try {
-        const result = await client.query('SELECT * FROM customers');
+        let query = 'SELECT * FROM customers';
+        let values = [];
+
+        if (req.user.role === 'salesman') {
+            query += ' WHERE assigned_sales_rep = $1';
+            values.push(req.user.id);
+        }
+
+        const result = await client.query(query, values);
         const mapped = result.rows.map(c => ({
             ...c,
             lastVisit: c.last_visit,
@@ -605,6 +738,22 @@ app.patch("/api/messages/:id/read", requireAuth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ─── Phase 2.5: Activity Logs ────────────────────────────────────────────────
+app.post("/api/activity", requireAuth, async (req, res) => {
+    try {
+        const { action, reference_id, latitude, longitude, device_id } = req.body;
+        if (!action) return res.status(400).json({ error: 'Action is required' });
+        const result = await client.query(
+            `INSERT INTO activity_logs (user_id, action, reference_id, latitude, longitude, device_id)
+             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+            [req.user.id, action, reference_id || null, latitude || null, longitude || null, device_id || null]
+        );
+        res.status(201).json({ success: true, id: result.rows[0].id });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ─── Feature 8: Update user target (admin only) ───────────────────────────────
 app.patch("/api/users/:id/target", requireAuth, requireAdmin, async (req, res) => {
     try {
@@ -698,14 +847,32 @@ app.get("/api/check-ins", requireAuth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.post("/api/check-ins", requireAuth, async (req, res) => {
+app.post("/api/check-ins", requireAuth, upload.single('photo'), async (req, res) => {
     try {
-        const { customerId, customerName, notes, photoData } = req.body;
+        const { customerId, customerName, notes } = req.body;
+
+        let photoUrl = null;
+        if (req.file) {
+            const fileName = `checkin-${Date.now()}-${Math.round(Math.random() * 1000)}.jpg`;
+            const { data, error } = await supabase.storage
+                .from('check-in-photos')
+                .upload(fileName, req.file.buffer, {
+                    contentType: req.file.mimetype,
+                    upsert: false
+                });
+            if (error) {
+                console.error("Storage upload error:", error);
+            } else {
+                const { data: publicData } = supabase.storage.from('check-in-photos').getPublicUrl(fileName);
+                photoUrl = publicData.publicUrl;
+            }
+        }
+
         if (!customerName) return res.status(400).json({ error: 'customerName is required' });
         const result = await client.query(
-            `INSERT INTO check_ins (user_id, customer_id, customer_name, notes, photo_data)
+            `INSERT INTO check_ins (user_id, customer_id, customer_name, notes, photo_url)
              VALUES ($1,$2,$3,$4,$5) RETURNING id, created_at`,
-            [req.user.id, customerId || null, customerName, notes || null, photoData || null]
+            [req.user.id, customerId || null, customerName, notes || null, photoUrl]
         );
         // Update last_visit on the customer
         if (customerId) {
@@ -722,6 +889,58 @@ app.post("/api/check-ins", requireAuth, async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+
+// ─── Feature 7 & 9: Admin Additions ───────────────────────────────────────────
+app.patch("/api/users/:id/status", requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const { active } = req.body;
+        await client.query('UPDATE users SET active = $1 WHERE id = $2', [active, req.params.id]);
+
+        if (active === false) {
+            // Revoke all tokens for this user by inserting a wildcard record
+            const { randomUUID } = crypto;
+            const jti = `revoked_all_${Date.now()}_${randomUUID()}`;
+            await client.query('INSERT INTO revoked_tokens (jti, user_id) VALUES ($1, $2)', [jti, req.params.id]);
+        }
+        res.json({ success: true, active });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.patch("/api/users/:id/customers", requireAuth, requireAdmin, async (req, res) => {
+    try {
+        const { customerId, action } = req.body;
+        if (action === 'assign') {
+            await client.query('UPDATE customers SET assigned_sales_rep = $1 WHERE id = $2', [req.params.id, customerId]);
+        } else {
+            await client.query('UPDATE customers SET assigned_sales_rep = NULL WHERE id = $1 AND assigned_sales_rep = $2', [customerId, req.params.id]);
+        }
+        res.json({ success: true });
+
+        // Push notification trigger
+        if (action === 'assign' && process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+            try {
+                // Fetch the user's FCM token
+                const tokenRes = await client.query('SELECT token FROM fcm_tokens WHERE user_id = $1 ORDER BY updated_at DESC LIMIT 1', [req.params.id]);
+                if (tokenRes.rows.length > 0) {
+                    const fcmToken = tokenRes.rows[0].token;
+                    // Fetch the customer's name
+                    const custRes = await client.query('SELECT name FROM customers WHERE id = $1', [customerId]);
+                    const customerName = custRes.rows[0]?.name || "a new customer";
+
+                    await admin.messaging().send({
+                        token: fcmToken,
+                        notification: {
+                            title: 'New Assignment',
+                            body: `You have been assigned to ${customerName}.`
+                        }
+                    });
+                }
+            } catch (e) {
+                console.error("Push notification logic failed", e);
+            }
+        }
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
 // ─── Static serving (production) ─────────────────────────────────────────────
 if (!process.env.VERCEL) {

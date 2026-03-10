@@ -8,6 +8,8 @@ import { useCustomer } from "@/contexts/CustomerContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/apiFetch";
 
+import { getDB } from "@/lib/db";
+
 const Catalog = () => {
   const [category, setCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
@@ -15,9 +17,18 @@ const Catalog = () => {
   const { data: products = [], isLoading } = useQuery<Product[]>({
     queryKey: ['products'],
     queryFn: async () => {
-      const res = await apiFetch('/api/products');
-      if (!res.ok) throw new Error("Failed to fetch products");
-      return res.json();
+      if (!navigator.onLine) {
+        const db = await getDB();
+        return await db.getAll('products');
+      }
+      try {
+        const res = await apiFetch('/api/products');
+        if (!res.ok) throw new Error("Failed to fetch products");
+        return res.json();
+      } catch (err) {
+        const db = await getDB();
+        return await db.getAll('products');
+      }
     }
   });
 

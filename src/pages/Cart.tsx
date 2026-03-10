@@ -10,6 +10,7 @@ import { apiFetch } from "@/lib/apiFetch";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { getDB } from "@/lib/db";
 
 interface CustomerData {
   id?: string;
@@ -96,24 +97,42 @@ const Cart = () => {
       return;
     }
     setIsSubmitting(true);
+
+    const orderData = {
+      items: cart,
+      subtotal,
+      discount,
+      discountPct,
+      tax,
+      grandTotal,
+      customerId: selectedCustomer.id,
+      customerName: selectedCustomer.name,
+      customerAddress: selectedCustomer.address,
+      customerPhone: selectedCustomer.phone,
+      customerEmail: selectedCustomer.email,
+      pricingLevelId: selectedPricingLevelId
+    };
+
+    if (!navigator.onLine) {
+      const db = await getDB();
+      await db.put('orders_offline', {
+        ...orderData,
+        offline_id: crypto.randomUUID(),
+        synced: 0,
+        createdAt: new Date().toISOString()
+      });
+      toast.success("Saved Offline", { description: "Order will sync when online" });
+      clearCart();
+      setSelectedCustomer(null);
+      setShowConfirm(false);
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       const res = await apiFetch('/api/orders', {
         method: 'POST',
-        body: JSON.stringify({
-          items: cart,
-          subtotal,
-          discount,
-          discountPct,
-          tax,
-          grandTotal,
-          customerId: selectedCustomer.id,
-          customerName: selectedCustomer.name,
-          customerAddress: selectedCustomer.address,
-          customerPhone: selectedCustomer.phone,
-          customerEmail: selectedCustomer.email,
-          pricingLevelId: selectedPricingLevelId
-          // userId is read from JWT on the server — never trust client-supplied userId
-        })
+        body: JSON.stringify(orderData)
       });
       if (!res.ok) throw new Error("Order creation failed");
 
@@ -123,8 +142,17 @@ const Cart = () => {
       setSelectedCustomer(null);
       setShowConfirm(false);
     } catch (error) {
-      toast.error("Failed to submit order.");
-      console.error(error);
+      const db = await getDB();
+      await db.put('orders_offline', {
+        ...orderData,
+        offline_id: crypto.randomUUID(),
+        synced: 0,
+        createdAt: new Date().toISOString()
+      });
+      toast.success("Saved Offline", { description: "Order will sync when online" });
+      clearCart();
+      setSelectedCustomer(null);
+      setShowConfirm(false);
     } finally {
       setIsSubmitting(false);
     }

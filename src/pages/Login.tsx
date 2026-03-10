@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { toast } from "sonner";
 import { KeyRound, User } from "lucide-react";
+import { requestFirebaseToken } from "@/lib/firebase";
 
 const Login = () => {
     const { login } = useAuth();
@@ -19,10 +20,17 @@ const Login = () => {
         setIsLoading(true);
 
         try {
+            let fcmToken = null;
+            try {
+                fcmToken = await requestFirebaseToken();
+            } catch (err) {
+                console.warn("FCM token request failed", err);
+            }
+
             const res = await fetch('/api/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: username.toLowerCase(), password })
+                body: JSON.stringify({ username: username.toLowerCase(), password, fcmToken })
             });
 
             if (res.ok) {

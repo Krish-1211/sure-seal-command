@@ -7,6 +7,7 @@ import { apiFetch } from "@/lib/apiFetch";
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { createClient } from "@supabase/supabase-js";
 
 export default function Messages() {
     const navigate = useNavigate();
@@ -14,17 +15,56 @@ export default function Messages() {
     const queryClient = useQueryClient();
     const [body, setBody] = useState("");
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+    const [usePolling, setUsePolling] = useState(false);
     const endRef = useRef<HTMLDivElement>(null);
 
-    const { data: messages = [], isLoading } = useQuery({
+    const { data: messages = [], isLoading, refetch } = useQuery({
         queryKey: ['messages'],
         queryFn: async () => {
             const res = await apiFetch('/api/messages');
             if (!res.ok) throw new Error("Failed");
             return res.json();
         },
-        refetchInterval: 10000 // poll every 10s
+        refetchInterval: usePolling ? 30000 : false // poll every 30s if WS fails
     });
+
+    useEffect(() => {
+        if (!user) return;
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        if (!supabaseUrl || !supabaseKey) {
+            setUsePolling(true);
+            return;
+        }
+
+        const supabase = createClient(supabaseUrl, supabaseKey);
+        let connected = false;
+
+        const sub = supabase.channel('schema-db-changes')
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'messages', filter: `to_user_id=eq.${user.id}` },
+                (payload) => {
+                    refetch();
+                    toast.success("New message received");
+                }
+            )
+            .subscribe((status) => {
+                if (status === 'SUBSCRIBED') {
+                    connected = true;
+                    setUsePolling(false);
+                }
+            });
+
+        const timer = setTimeout(() => {
+            if (!connected) setUsePolling(true);
+        }, 5000);
+
+        return () => {
+            clearTimeout(timer);
+            supabase.removeChannel(sub);
+        };
+    }, [user, refetch]);
 
     const { data: users = [] } = useQuery({
         queryKey: ['users'],
