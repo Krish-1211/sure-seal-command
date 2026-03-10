@@ -40,13 +40,15 @@ export default function Messages() {
         const supabase = createClient(supabaseUrl, supabaseKey);
         let connected = false;
 
-        const sub = supabase.channel('schema-db-changes')
+        const sub = supabase.channel('messages-realtime')
             .on(
                 'postgres_changes',
-                { event: 'INSERT', schema: 'public', table: 'messages', filter: `to_user_id=eq.${user.id}` },
-                (payload) => {
-                    refetch();
-                    toast.success("New message received");
+                { event: 'INSERT', schema: 'public', table: 'messages' },
+                (payload: any) => {
+                    if (payload.new.to_user_id === user.id) {
+                        refetch();
+                        toast.success("New message received");
+                    }
                 }
             )
             .subscribe((status) => {
