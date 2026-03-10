@@ -46,9 +46,9 @@ if (!connectionString) {
 }
 const pool = new Pool({
     connectionString,
-    max: 5,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000, // Reduced to 2000ms per 2.6 requirements
+    max: 1, // Reduced to 1 for Vercel Serverless Functions to prevent exhausting the session pooler
+    idleTimeoutMillis: 5000, // Close idle connections faster
+    connectionTimeoutMillis: 5000,
     ssl: { rejectUnauthorized: false }
 });
 
