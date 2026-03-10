@@ -738,16 +738,21 @@ app.post("/api/messages", requireAuth, async (req, res) => {
                     const senderRes = await client.query('SELECT name FROM users WHERE id = $1', [req.user.id]);
                     const senderName = senderRes.rows[0]?.name || "Someone";
 
+                    console.log(`Push Alert: Attempting send to ${toUserId}...`);
                     await admin.messaging().send({
                         token: fcmToken,
                         notification: {
                             title: `New Message from ${senderName}`,
                             body: body.trim()
-                        }
+                        },
+                        data: { url: '/messages' }
                     });
+                    console.log(`Push Alert: Sent successfully to ${toUserId}`);
+                } else {
+                    console.log(`Push Alert: No token found for ${toUserId}`);
                 }
             } catch (e) {
-                console.error("Message push notification failed", e);
+                console.error("Push Alert Failed:", e.message);
             }
         }
     } catch (err) { res.status(500).json({ error: err.message }); }
