@@ -10,10 +10,12 @@ const firebaseConfig = {
     appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-export const app = initializeApp(firebaseConfig);
+const isFirebaseConfigured = Boolean(firebaseConfig.projectId);
+
+export const app = isFirebaseConfigured ? initializeApp(firebaseConfig) : null;
 
 // Initialize conditionally to avoid errors in environments without browser APIs
-export const messaging = typeof window !== 'undefined' ? getMessaging(app) : null;
+export const messaging = app && typeof window !== 'undefined' ? getMessaging(app) : null;
 
 export const requestFirebaseToken = async () => {
     if (!messaging) return null;
