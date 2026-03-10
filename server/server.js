@@ -250,6 +250,19 @@ app.post("/api/login", async (req, res) => {
     }
 });
 
+app.post("/api/fcm-token", requireAuth, async (req, res) => {
+    try {
+        const { fcmToken } = req.body;
+        if (!fcmToken) return res.status(400).json({ error: 'fcmToken is required' });
+        await client.query(`
+            INSERT INTO fcm_tokens (user_id, token) 
+            VALUES ($1, $2)
+            ON CONFLICT (token) DO UPDATE SET user_id = $1, updated_at = NOW()
+        `, [req.user.id, fcmToken]);
+        res.json({ success: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // GET /api/products — public (salespeople need it before auth in dev)
 app.get("/api/products", async (req, res) => {
     try {

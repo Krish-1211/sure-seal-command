@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { formatCurrency } from "@/lib/utils";
 import { apiFetch } from "@/lib/apiFetch";
+import { NotificationBanner } from "@/components/NotificationBanner";
 
 const SalesmanDashboard = () => {
   const { user } = useAuth();
@@ -438,6 +439,7 @@ const Dashboard = () => {
 
   return (
     <MobileLayout>
+      <NotificationBanner />
       {user?.role === "admin" ? <AdminDashboard /> : user?.role === "customer" ? <CustomerDashboard /> : <SalesmanDashboard />}
     </MobileLayout>
   );
