@@ -18,7 +18,12 @@ export const app = isFirebaseConfigured ? initializeApp(firebaseConfig) : null;
 export const messaging = app && typeof window !== 'undefined' ? getMessaging(app) : null;
 
 export const requestFirebaseToken = async () => {
-    if (!messaging) return null;
+    if (!messaging) {
+        if (!firebaseConfig.projectId) {
+            throw new Error("Missing Firebase Project ID. Please add VITE_FIREBASE_PROJECT_ID to your environment.");
+        }
+        throw new Error("Messaging not initialized. Ensure your browser supports notifications.");
+    }
 
     try {
         const permission = await Notification.requestPermission();
@@ -31,9 +36,12 @@ export const requestFirebaseToken = async () => {
                 serviceWorkerRegistration: registration
             });
             return token;
+        } else if (permission === 'denied') {
+            throw new Error("Permission denied. You need to reset notification permissions in the browser address bar.");
         }
-    } catch (error) {
+    } catch (error: any) {
         console.error("Firebase token error", error);
+        throw error;
     }
     return null;
 };

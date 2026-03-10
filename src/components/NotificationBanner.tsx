@@ -23,7 +23,6 @@ export const NotificationBanner: React.FC = () => {
         try {
             const token = await requestFirebaseToken();
             if (token) {
-                // Save to backend
                 const res = await apiFetch('/api/fcm-token', {
                     method: 'POST',
                     body: JSON.stringify({ fcmToken: token })
@@ -34,11 +33,11 @@ export const NotificationBanner: React.FC = () => {
                     toast.success("Push notifications enabled!");
                 }
             } else {
-                toast.error("Notifications were not enabled. Please check browser settings.");
+                toast.error("Process aborted. Please allow notifications if prompted.");
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
-            toast.error("Failed to enable notifications.");
+            toast.error(err.message || "Failed to enable notifications.");
         }
     };
 
