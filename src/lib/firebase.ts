@@ -23,11 +23,34 @@ export const requestFirebaseToken = async () => {
     try {
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
-            const token = await getToken(messaging, { vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY });
+            const swUrl = `/firebase-messaging-sw.js?apiKey=${firebaseConfig.apiKey}&projectId=${firebaseConfig.projectId}&messagingSenderId=${firebaseConfig.messagingSenderId}&appId=${firebaseConfig.appId}`;
+            const registration = await navigator.serviceWorker.register(swUrl);
+
+            const token = await getToken(messaging, {
+                vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY,
+                serviceWorkerRegistration: registration
+            });
             return token;
         }
     } catch (error) {
         console.error("Firebase token error", error);
     }
     return null;
+};
+
+import { onMessage } from 'firebase/messaging';
+import { toast } from 'sonner';
+
+export const onForegroundMessage = () => {
+    if (!messaging) return;
+
+    return onMessage(messaging, (payload) => {
+        console.log('Received foreground message:', payload);
+        if (payload.notification) {
+            toast.message(payload.notification.title, {
+                description: payload.notification.body,
+                duration: 5000,
+            });
+        }
+    });
 };

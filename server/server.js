@@ -728,6 +728,28 @@ app.post("/api/messages", requireAuth, async (req, res) => {
             [req.user.id, toUserId, body.trim()]
         );
         res.status(201).json(result.rows[0]);
+
+        // Real-time Push Notification Dispatch
+        if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+            try {
+                const tokenRes = await client.query('SELECT token FROM fcm_tokens WHERE user_id = $1 ORDER BY updated_at DESC LIMIT 1', [toUserId]);
+                if (tokenRes.rows.length > 0) {
+                    const fcmToken = tokenRes.rows[0].token;
+                    const senderRes = await client.query('SELECT name FROM users WHERE id = $1', [req.user.id]);
+                    const senderName = senderRes.rows[0]?.name || "Someone";
+
+                    await admin.messaging().send({
+                        token: fcmToken,
+                        notification: {
+                            title: `New Message from ${senderName}`,
+                            body: body.trim()
+                        }
+                    });
+                }
+            } catch (e) {
+                console.error("Message push notification failed", e);
+            }
+        }
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { syncMasterData, uploadOfflineData } from "@/lib/sync";
+import { onForegroundMessage } from "@/lib/firebase";
 
 export type Role = "admin" | "salesman" | "customer";
 
@@ -37,8 +38,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
 
     useEffect(() => {
+        let unsubscribeMessage: (() => void) | undefined;
+
         if (user) {
             uploadOfflineData().then(() => syncMasterData());
+            unsubscribeMessage = onForegroundMessage();
         }
 
         const handleOnline = () => {
@@ -47,7 +51,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             }
         };
         window.addEventListener('online', handleOnline);
-        return () => window.removeEventListener('online', handleOnline);
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            if (unsubscribeMessage) unsubscribeMessage();
+        };
     }, [user]);
 
     // Store only safe display data in localStorage (no role tampering possible — role is in JWT validated server-side)
