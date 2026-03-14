@@ -4,12 +4,38 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { useCustomer } from "@/contexts/CustomerContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { apiFetch } from "@/lib/apiFetch";
+import { useState, useRef } from "react";
+import { CheckCircle, Camera, X, Loader2 } from "lucide-react";
+import imageCompression from 'browser-image-compression';
+
+// 6.3 Client-Side Photo Compression
+async function compressImage(file: File): Promise<string> {
+    const options = {
+        maxSizeMB: 0.5,
+        maxWidthOrHeight: 1024,
+        useWebWorker: true,
+    };
+    try {
+        const compressedFile = await imageCompression(file, options);
+        return await imageCompression.getDataUrlFromFile(compressedFile);
+    } catch (error) {
+        console.error("Compression failed", error);
+        throw error;
+    }
+}
 
 export default function CustomerDetails() {
     const { id } = useParams();
     const navigate = useNavigate();
+    const { user } = useAuth();
+    const [isCheckingIn, setIsCheckingIn] = useState(false);
+    const [notes, setNotes] = useState("");
+    const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+    const [photoData, setPhotoData] = useState<string | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const { data: customersData = { data: [] }, isLoading } = useQuery({
         queryKey: ['customers'],
@@ -76,6 +102,75 @@ export default function CustomerDetails() {
             toast.success("Pricing level updated");
         }
     });
+
+    const checkInMutation = useMutation({
+        mutationFn: async ({ customerId, customerName }: { customerId: string; customerName: string }) => {
+            if (!navigator.onLine) {
+                const { getDB } = await import("@/lib/db");
+                const db = await getDB();
+                await db.put('check_ins_offline', {
+                    customerId, customerName, notes, photoBlob: photoData ? await (await fetch(photoData)).blob() : null,
+                    offline_id: crypto.randomUUID(),
+                    createdAt: new Date().toISOString()
+                });
+                return { offline: true };
+            }
+
+            const formData = new FormData();
+            formData.append('customerId', customerId);
+            formData.append('customerName', customerName);
+            if (notes) formData.append('notes', notes);
+            if (photoData) {
+                const r = await fetch(photoData);
+                const blob = await r.blob();
+                formData.append('photo', blob, 'photo.jpg');
+            }
+
+            try {
+                const res = await apiFetch('/api/check-ins', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
+                return res.json();
+            } catch (err) {
+                const { getDB } = await import("@/lib/db");
+                const db = await getDB();
+                await db.put('check_ins_offline', {
+                    customerId, customerName, notes, photoBlob: photoData ? await (await fetch(photoData)).blob() : null,
+                    offline_id: crypto.randomUUID(),
+                    createdAt: new Date().toISOString()
+                });
+                return { offline: true };
+            }
+        },
+        onSuccess: (data: any, vars) => {
+            if (data?.offline) {
+                toast.success("Saved Offline", { description: "Check-in will sync when back online." });
+            } else {
+                toast.success(`✅ Checked in to ${vars.customerName}`);
+            }
+            setIsCheckingIn(false);
+            setNotes("");
+            setPhotoData(null);
+            setPhotoPreview(null);
+            queryClient.invalidateQueries({ queryKey: ['customers'] });
+            queryClient.invalidateQueries({ queryKey: ['check-ins'] });
+        },
+        onError: (err: any) => toast.error(err.message)
+    });
+
+    const handlePhotoCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+            const compressed = await compressImage(file);
+            setPhotoData(compressed);
+            setPhotoPreview(compressed);
+            toast.success("Photo captured");
+        } catch { toast.error("Failed to process photo"); }
+        e.target.value = '';
+    };
 
     const { setSelectedCustomer } = useCustomer();
 
@@ -150,13 +245,23 @@ export default function CustomerDetails() {
                             </div>
                         </div>
                     </div>
-                    <div className="pt-2 flex gap-3">
-                        <Button className="flex-1 h-12 bg-primary text-primary-foreground font-bold font-heading rounded-xl shadow-sm gap-2">
+                    <div className="pt-2 grid grid-cols-2 gap-3">
+                        <Button
+                            className="h-12 bg-primary text-primary-foreground font-bold font-heading rounded-xl shadow-sm gap-2"
+                            onClick={() => window.open(`tel:${customer.phone}`, '_self')}
+                        >
                             <Phone className="h-4 w-4" /> Call Client
                         </Button>
                         <Button
                             variant="outline"
-                            className="flex-1 h-12 bg-card border-border/50 text-foreground font-bold font-heading rounded-xl shadow-sm gap-2 active:bg-muted"
+                            className="h-12 bg-card border-border/50 text-foreground font-bold font-heading rounded-xl shadow-sm gap-2 active:bg-muted"
+                            onClick={() => setIsCheckingIn(true)}
+                        >
+                            <CheckCircle className="h-4 w-4" /> Check In
+                        </Button>
+                        <Button
+                            variant="secondary"
+                            className="h-12 bg-secondary text-secondary-foreground font-bold font-heading rounded-xl shadow-sm gap-2 active:bg-muted"
                             onClick={() => {
                                 setSelectedCustomer(customer);
                                 toast.success(`Selected ${customer.name}`);
@@ -164,6 +269,13 @@ export default function CustomerDetails() {
                             }}
                         >
                             <Package className="h-4 w-4" /> Start Order
+                        </Button>
+                        <Button
+                            variant="outline"
+                            className="h-12 border-dashed border-border/50 text-muted-foreground font-bold font-heading rounded-xl gap-2 active:bg-muted"
+                            onClick={() => navigate("/route")}
+                        >
+                            <MapPin className="h-4 w-4" /> Navigate
                         </Button>
                     </div>
                 </div>
@@ -274,6 +386,63 @@ export default function CustomerDetails() {
                 </div>
 
             </div>
+            {/* Check-in bottom sheet */}
+            {isCheckingIn && (
+                <div className="fixed inset-0 z-50 flex flex-col justify-end">
+                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsCheckingIn(false)} />
+                    <div className="relative bg-card rounded-t-3xl shadow-2xl px-5 pt-5 pb-8 z-10">
+                        <div className="w-10 h-1 bg-muted rounded-full mx-auto mb-4" />
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <h2 className="font-heading font-bold text-foreground">Manual Check In</h2>
+                                <p className="text-sm text-primary font-medium">{customer.name}</p>
+                            </div>
+                            <button onClick={() => setIsCheckingIn(false)} className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+
+                        <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-1.5">Visit Notes</label>
+                        <textarea
+                            value={notes}
+                            onChange={(e) => setNotes(e.target.value)}
+                            placeholder="e.g. Discussed bulk pricing for next month..."
+                            rows={3}
+                            className="w-full bg-muted rounded-xl px-4 py-3 text-sm font-body outline-none focus:ring-2 focus:ring-primary/40 resize-none mb-4"
+                        />
+
+                        <div className="mb-5">
+                            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-2">Photo (optional)</label>
+                            {photoPreview ? (
+                                <div className="relative w-full h-40 rounded-xl overflow-hidden bg-muted">
+                                    <img src={photoPreview} alt="Visit photo" className="w-full h-full object-cover" />
+                                    <button onClick={() => { setPhotoPreview(null); setPhotoData(null); }}
+                                        className="absolute top-2 right-2 h-7 w-7 rounded-full bg-black/60 text-white flex items-center justify-center">
+                                        <X className="h-3.5 w-3.5" />
+                                    </button>
+                                </div>
+                            ) : (
+                                <button onClick={() => fileInputRef.current?.click()}
+                                    className="w-full h-24 rounded-xl border-2 border-dashed border-border/60 flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors">
+                                    <Camera className="h-6 w-6" />
+                                    <span className="text-xs font-medium">Take Photo / Upload</span>
+                                </button>
+                            )}
+                            <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoCapture} />
+                        </div>
+
+                        <button
+                            onClick={() => checkInMutation.mutate({ customerId: customer.id!, customerName: customer.name })}
+                            disabled={checkInMutation.isPending}
+                            className="w-full h-12 bg-primary text-primary-foreground rounded-xl font-heading font-bold text-sm flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors"
+                        >
+                            {checkInMutation.isPending
+                                ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</>
+                                : <><CheckCircle2 className="h-4 w-4" /> Confirm Check-In</>}
+                        </button>
+                    </div>
+                </div>
+            )}
         </MobileLayout>
     );
 }

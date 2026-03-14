@@ -10,7 +10,7 @@ const firebaseConfig = {
     appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-const isFirebaseConfigured = Boolean(firebaseConfig.projectId);
+export const isFirebaseConfigured = Boolean(firebaseConfig.projectId) && !firebaseConfig.projectId.includes("your-project-id");
 
 export const app = isFirebaseConfigured ? initializeApp(firebaseConfig) : null;
 
@@ -19,8 +19,9 @@ export const messaging = app && typeof window !== 'undefined' ? getMessaging(app
 
 export const requestFirebaseToken = async () => {
     if (!messaging) {
-        if (!firebaseConfig.projectId) {
-            throw new Error("Missing Firebase Project ID. Please add VITE_FIREBASE_PROJECT_ID to your environment.");
+        if (!isFirebaseConfigured) {
+            console.warn("Firebase not configured. Notifications will be disabled.");
+            return null;
         }
         throw new Error("Messaging not initialized. Ensure your browser supports notifications.");
     }

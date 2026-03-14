@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BellOff, X } from 'lucide-react';
-import { requestFirebaseToken } from '@/lib/firebase';
+import { requestFirebaseToken, isFirebaseConfigured } from '@/lib/firebase';
 import { apiFetch } from '@/lib/apiFetch';
 import { toast } from 'sonner';
 
@@ -8,8 +8,8 @@ export const NotificationBanner: React.FC = () => {
     const [isVisible, setIsVisible] = useState(false);
 
     useEffect(() => {
-        // Check if browser supports notifications
-        if (!('Notification' in window)) return;
+        // Check if browser supports notifications and firebase is ready
+        if (!('Notification' in window) || !isFirebaseConfigured) return;
 
         // Check if already dismissed in this session or granted
         const isDismissed = sessionStorage.getItem('notification_banner_dismissed');
