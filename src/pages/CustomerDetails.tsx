@@ -104,12 +104,15 @@ export default function CustomerDetails() {
     });
 
     const checkInMutation = useMutation({
-        mutationFn: async ({ customerId, customerName }: { customerId: string; customerName: string }) => {
+        mutationFn: async ({ customerId, customerName, fastCheckIn = false }: { customerId: string; customerName: string, fastCheckIn?: boolean }) => {
+            const activeNotes = fastCheckIn ? "Checked in (Manual)" : notes;
+            const activePhoto = fastCheckIn ? null : photoData;
+
             if (!navigator.onLine) {
                 const { getDB } = await import("@/lib/db");
                 const db = await getDB();
                 await db.put('check_ins_offline', {
-                    customerId, customerName, notes, photoBlob: photoData ? await (await fetch(photoData)).blob() : null,
+                    customerId, customerName, notes: activeNotes, photoBlob: activePhoto ? await (await fetch(activePhoto)).blob() : null,
                     offline_id: crypto.randomUUID(),
                     createdAt: new Date().toISOString()
                 });
@@ -119,9 +122,9 @@ export default function CustomerDetails() {
             const formData = new FormData();
             formData.append('customerId', customerId);
             formData.append('customerName', customerName);
-            if (notes) formData.append('notes', notes);
-            if (photoData) {
-                const r = await fetch(photoData);
+            if (activeNotes) formData.append('notes', activeNotes);
+            if (activePhoto) {
+                const r = await fetch(activePhoto);
                 const blob = await r.blob();
                 formData.append('photo', blob, 'photo.jpg');
             }
@@ -137,7 +140,7 @@ export default function CustomerDetails() {
                 const { getDB } = await import("@/lib/db");
                 const db = await getDB();
                 await db.put('check_ins_offline', {
-                    customerId, customerName, notes, photoBlob: photoData ? await (await fetch(photoData)).blob() : null,
+                    customerId, customerName, notes: activeNotes, photoBlob: activePhoto ? await (await fetch(activePhoto)).blob() : null,
                     offline_id: crypto.randomUUID(),
                     createdAt: new Date().toISOString()
                 });
@@ -146,9 +149,9 @@ export default function CustomerDetails() {
         },
         onSuccess: (data: any, vars) => {
             if (data?.offline) {
-                toast.success("Saved Offline", { description: "Check-in will sync when back online." });
+                toast.success("Saved Offline", { description: "Check-in recorded locally." });
             } else {
-                toast.success(`✅ Checked in to ${vars.customerName}`);
+                toast.success(`✅ ${vars.fastCheckIn ? 'Checked in' : 'Visit Logged'} for ${vars.customerName}`);
             }
             setIsCheckingIn(false);
             setNotes("");
@@ -254,10 +257,16 @@ export default function CustomerDetails() {
                         </Button>
                         <Button
                             variant="outline"
-                            className="h-12 bg-card border-border/50 text-foreground font-bold font-heading rounded-xl shadow-sm gap-2 active:bg-muted"
-                            onClick={() => setIsCheckingIn(true)}
+                            className="h-12 border-primary/40 text-primary font-bold font-heading rounded-xl shadow-sm gap-2 active:bg-muted"
+                            disabled={checkInMutation.isPending}
+                            onClick={() => checkInMutation.mutate({ customerId: customer.id!, customerName: customer.name, fastCheckIn: true })}
                         >
-                            <CheckCircle className="h-4 w-4" /> Check In
+                            {checkInMutation.isPending && checkInMutation.variables?.fastCheckIn ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <CheckCircle className="h-4 w-4" />
+                            )}
+                            Quick Check-In
                         </Button>
                         <Button
                             variant="secondary"
@@ -272,10 +281,17 @@ export default function CustomerDetails() {
                         </Button>
                         <Button
                             variant="outline"
-                            className="h-12 border-dashed border-border/50 text-muted-foreground font-bold font-heading rounded-xl gap-2 active:bg-muted"
+                            className="h-12 bg-card border-border/50 text-foreground font-bold font-heading rounded-xl shadow-sm gap-2 active:bg-muted"
+                            onClick={() => setIsCheckingIn(true)}
+                        >
+                            <History className="h-4 w-4 text-muted-foreground" /> Log Visit
+                        </Button>
+                        <Button
+                            variant="outline"
+                            className="h-12 border-dashed border-border/50 text-muted-foreground font-bold font-heading rounded-xl gap-2 active:bg-muted col-span-2"
                             onClick={() => navigate("/route")}
                         >
-                            <MapPin className="h-4 w-4" /> Navigate
+                            <MapPin className="h-4 w-4" /> Open GPS Navigation
                         </Button>
                     </div>
                 </div>
@@ -394,7 +410,7 @@ export default function CustomerDetails() {
                         <div className="w-10 h-1 bg-muted rounded-full mx-auto mb-4" />
                         <div className="flex items-center justify-between mb-4">
                             <div>
-                                <h2 className="font-heading font-bold text-foreground">Manual Check In</h2>
+                                <h2 className="font-heading font-bold text-foreground">Log Visit Details</h2>
                                 <p className="text-sm text-primary font-medium">{customer.name}</p>
                             </div>
                             <button onClick={() => setIsCheckingIn(false)} className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
