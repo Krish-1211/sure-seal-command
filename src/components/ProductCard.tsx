@@ -10,13 +10,13 @@ export function ProductCard(product: Product) {
   const { cart, addToCart, updateQuantity } = useCart();
   const [selectedVariantIndex, setSelectedVariantIndex] = useState(0);
 
-  const selectedVariant = variants[selectedVariantIndex] as any;
-  const cartItem = cart.find(item => item.variant.sku === selectedVariant.sku);
+  const selectedVariant = (variants && variants.length > 0) ? variants[selectedVariantIndex] : null;
+  const cartItem = selectedVariant ? cart.find(item => item.variant.sku === selectedVariant.sku) : null;
   const quantity = cartItem ? cartItem.quantity : 0;
 
-  const stockStatus: string = selectedVariant.stockStatus || selectedVariant.stock_status || 'in_stock';
-  const isOutOfStock = stockStatus === 'out_of_stock';
-  const isLowStock = stockStatus === 'low_stock';
+  const stockStatus: string = selectedVariant ? (selectedVariant.stockStatus || selectedVariant.stock_status || 'in_stock') : 'out_of_stock';
+  const isOutOfStock = !selectedVariant || stockStatus === 'out_of_stock';
+  const isLowStock = selectedVariant && stockStatus === 'low_stock';
 
   const handleIncrement = () => {
     if (isOutOfStock) {
@@ -80,13 +80,16 @@ export function ProductCard(product: Product) {
 
           <div className="flex items-center justify-between mb-4">
             <p className="text-lg md:text-xl font-heading font-bold text-foreground tracking-tight">
-              {isOutOfStock ? <span className="text-muted-foreground/50 line-through text-base">{formatCurrency(selectedVariant.price)}</span> : formatCurrency(selectedVariant.price)}
+              {selectedVariant 
+                ? (isOutOfStock ? <span className="text-muted-foreground/50 line-through text-base">{formatCurrency(selectedVariant.price)}</span> : formatCurrency(selectedVariant.price))
+                : ""
+              }
             </p>
             <span className={`text-[10px] md:text-xs font-bold px-2.5 py-1 rounded-full ${isOutOfStock ? 'bg-destructive/10 text-destructive' :
                 isLowStock ? 'bg-accent/10 text-accent' :
                   'bg-success/15 text-success'
               }`}>
-              {isOutOfStock ? 'Out of Stock' : isLowStock ? `Low Stock (${selectedVariant.stockQty ?? '< 10'})` : 'In Stock'}
+              {isOutOfStock ? (selectedVariant ? 'Out of Stock' : 'Not Available') : isLowStock ? `Low Stock (${selectedVariant?.stockQty ?? '< 10'})` : 'In Stock'}
             </span>
           </div>
 

@@ -48,7 +48,7 @@ const Catalog = () => {
         p.description.toLowerCase().includes(searchQuery.toLowerCase());
       return matchesCategory && matchesSearch;
     }).map(p => {
-      const adjustedVariants = p.variants.map((v: any) => ({
+      const adjustedVariants = (p.variants || []).map((v: any) => ({
         ...v,
         price: getAdjustedPrice(v.sku, v.price),
         stockStatus: v.stockStatus || v.stock_status || 'in_stock',

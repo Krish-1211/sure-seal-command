@@ -3,6 +3,10 @@ export interface ProductVariant {
   sku: string;
   price: number;
   stock: number;
+  stockStatus?: string;
+  stock_status?: string;
+  stockQty?: number;
+  stock_qty?: number;
 }
 
 export interface Product {
