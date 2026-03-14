@@ -11,7 +11,7 @@ export interface Product {
   description: string;
   category: string;
   tags: string[];
-  image: string;
+  image_url: string;
   variants: ProductVariant[];
 }
 
@@ -24,7 +24,7 @@ export const products: Product[] = [
     "tags": [
       "retail"
     ],
-    "image": "/images/cleaner_gts750u_front.png",
+    "image_url": "/images/cleaner_gts750u_front.png",
     "variants": [
       {
         "name": "750ML",
@@ -42,7 +42,7 @@ export const products: Product[] = [
     "tags": [
       "retail"
     ],
-    "image": "/images/cleaner_gts1u_group.png",
+    "image_url": "/images/cleaner_gts1u_group.png",
     "variants": [
       {
         "name": "1 LTR",
@@ -72,7 +72,7 @@ export const products: Product[] = [
     "tags": [
       "retail"
     ],
-    "image": "/images/cleaner_effp1u_group.jpg",
+    "image_url": "/images/cleaner_effp1u_group.jpg",
     "variants": [
       {
         "name": "1 LTR",
@@ -102,7 +102,7 @@ export const products: Product[] = [
     "tags": [
       "retail"
     ],
-    "image": "/images/cleaner_sc1u_group.png",
+    "image_url": "/images/cleaner_sc1u_group.png",
     "variants": [
       {
         "name": "1 LTR",
@@ -132,7 +132,7 @@ export const products: Product[] = [
     "tags": [
       "retail"
     ],
-    "image": "/images/cleaner_rcsr750u_front.png",
+    "image_url": "/images/cleaner_rcsr750u_front.png",
     "variants": [
       {
         "name": "750ML",
@@ -150,7 +150,7 @@ export const products: Product[] = [
     "tags": [
       "retail"
     ],
-    "image": "/images/sealer_gts300a_front.png",
+    "image_url": "/images/sealer_gts300a_front.png",
     "variants": [
       {
         "name": "300g",
@@ -168,7 +168,7 @@ export const products: Product[] = [
     "tags": [
       "retail"
     ],
-    "image": "/images/sealer_sdau_front.png",
+    "image_url": "/images/sealer_sdau_front.png",
     "variants": [
       {
         "name": "300g",
@@ -186,7 +186,7 @@ export const products: Product[] = [
     "tags": [
       "retail"
     ],
-    "image": "/images/sealer_rcpau_front.png",
+    "image_url": "/images/sealer_rcpau_front.png",
     "variants": [
       {
         "name": "350g",
@@ -204,7 +204,7 @@ export const products: Product[] = [
     "tags": [
       "retail"
     ],
-    "image": "/images/sealer_tsau_front.png",
+    "image_url": "/images/sealer_tsau_front.png",
     "variants": [
       {
         "name": "300g",
@@ -222,7 +222,7 @@ export const products: Product[] = [
     "tags": [
       "retail"
     ],
-    "image": "/images/sealer_ezyas1l_group.jpg",
+    "image_url": "/images/sealer_ezyas1l_group.jpg",
     "variants": [
       {
         "name": "1 LTR",
@@ -252,7 +252,7 @@ export const products: Product[] = [
     "tags": [
       "retail"
     ],
-    "image": "/images/sealer_sd1u_wb_group.jpg",
+    "image_url": "/images/sealer_sd1u_wb_group.jpg",
     "variants": [
       {
         "name": "1 LTR",
@@ -282,7 +282,7 @@ export const products: Product[] = [
     "tags": [
       "retail"
     ],
-    "image": "/images/sealer_24p1u_s_front.jpg",
+    "image_url": "/images/sealer_24p1u_s_front.jpg",
     "variants": [
       {
         "name": "1 LTR",
@@ -312,7 +312,7 @@ export const products: Product[] = [
     "tags": [
       "retail"
     ],
-    "image": "/images/sealer_qd1u_s_group.jpg",
+    "image_url": "/images/sealer_qd1u_s_group.jpg",
     "variants": [
       {
         "name": "1 LTR",
@@ -342,7 +342,7 @@ export const products: Product[] = [
     "tags": [
       "retail"
     ],
-    "image": "/images/sealer_sd1u_s_group.jpg",
+    "image_url": "/images/sealer_sd1u_s_group.jpg",
     "variants": [
       {
         "name": "1 LTR",
@@ -372,7 +372,7 @@ export const products: Product[] = [
     "tags": [
       "retail"
     ],
-    "image": "/images/sealer_24p1u_wb_group.jpg",
+    "image_url": "/images/sealer_24p1u_wb_group.jpg",
     "variants": [
       {
         "name": "1 LTR",
@@ -402,7 +402,7 @@ export const products: Product[] = [
     "tags": [
       "retail"
     ],
-    "image": "/images/sealer_pp1u_group.jpg",
+    "image_url": "/images/sealer_pp1u_group.jpg",
     "variants": [
       {
         "name": "1 LTR",

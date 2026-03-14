@@ -36,14 +36,16 @@ const Cart = () => {
   const [isNewCustomer, setIsNewCustomer] = useState(false);
   const [newCustomerForm, setNewCustomerForm] = useState<CustomerData>({ name: "", address: "", phone: "", email: "" });
 
-  const { data: customers = [] } = useQuery({
+  const { data: customersData = { data: [] } } = useQuery({
     queryKey: ['customers'],
     queryFn: async () => {
-      const res = await apiFetch('/api/customers');
+      const res = await apiFetch('/api/customers?limit=100');
       if (!res.ok) throw new Error("Failed");
       return res.json();
     }
   });
+
+  const customers = Array.isArray(customersData) ? customersData : (customersData.data || []);
 
   const filteredCustomers = customers.filter((c: any) =>
     c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
@@ -110,7 +112,8 @@ const Cart = () => {
       customerAddress: selectedCustomer.address,
       customerPhone: selectedCustomer.phone,
       customerEmail: selectedCustomer.email,
-      pricingLevelId: selectedPricingLevelId
+      pricingLevelId: selectedPricingLevelId,
+      offline_credit_check: !navigator.onLine // 6.5 Flag for review
     };
 
     if (!navigator.onLine) {
@@ -171,6 +174,16 @@ const Cart = () => {
           </div>
         </div>
       </header>
+
+      {/* 6.5 Offline Warning Banner */}
+      {!navigator.onLine && (
+        <div className="mx-4 mt-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-4 py-3 flex items-start gap-3 animate-fade-in">
+          <AlertTriangle className="h-4 w-4 text-yellow-600 mt-0.5 shrink-0" />
+          <p className="text-xs text-yellow-700 font-medium leading-snug">
+            Offline mode — credit limit based on data synced at {localStorage.getItem('last_full_sync') || 'the last successful connection'}.
+          </p>
+        </div>
+      )}
 
       <div className="px-4 py-3 space-y-2">
 

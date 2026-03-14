@@ -11,14 +11,15 @@ export default function CustomerDetails() {
     const { id } = useParams();
     const navigate = useNavigate();
 
-    const { data: customers = [], isLoading } = useQuery({
+    const { data: customersData = { data: [] }, isLoading } = useQuery({
         queryKey: ['customers'],
         queryFn: async () => {
-            const res = await apiFetch('/api/customers');
+            const res = await apiFetch('/api/customers?limit=100');
             if (!res.ok) throw new Error("Failed");
             return res.json();
         }
     });
+    const customers = Array.isArray(customersData) ? customersData : (customersData.data || []);
 
     const { data: pricingLevels = [] } = useQuery({
         queryKey: ['pricing-levels'],
@@ -29,14 +30,15 @@ export default function CustomerDetails() {
         }
     });
 
-    const { data: users = [] } = useQuery({
+    const { data: usersData = { data: [] } } = useQuery({
         queryKey: ['users'],
         queryFn: async () => {
-            const res = await apiFetch('/api/users');
+            const res = await apiFetch('/api/users?limit=100');
             if (!res.ok) throw new Error("Failed");
             return res.json();
         }
     });
+    const users = Array.isArray(usersData) ? usersData : (usersData.data || []);
     const reps = users.filter((u: any) => u.role === "salesman");
 
     const queryClient = useQueryClient();

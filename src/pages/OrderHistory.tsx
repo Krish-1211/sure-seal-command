@@ -1,13 +1,16 @@
 import { MobileLayout } from "@/components/layout/MobileLayout";
-import { ChevronLeft, Package, Search, Calendar, Filter, Loader2, RotateCcw, XCircle, Clock, Lock, FileDown } from "lucide-react";
+import { ChevronLeft, Package, Search, Calendar, Filter, Loader2, RotateCcw, XCircle, Clock, Lock, FileDown, AlertTriangle } from "lucide-react";
 import { generateInvoicePdf } from "@/lib/generateInvoicePdf";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/apiFetch";
 import { useCart } from "@/contexts/CartContext";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { toast } from "sonner";
+import { useCustomer } from "@/contexts/CustomerContext";
+import { Button } from "@/components/ui/button";
+import { Product } from "@/lib/products";
 
 const formatCurrency = (val: number) => new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(val);
 
@@ -18,14 +21,28 @@ export default function OrderHistory() {
     const queryClient = useQueryClient();
     const [search, setSearch] = useState("");
 
-    const { data: orders = [], isLoading } = useQuery({
-        queryKey: ['orders-history'],
+    const { getAdjustedPrice } = useCustomer();
+    const [pendingReorder, setPendingReorder] = useState<{ items: any[], diffs: any[] } | null>(null);
+
+    const { data: products = [] } = useQuery<Product[]>({
+        queryKey: ['products'],
         queryFn: async () => {
-            const res = await apiFetch('/api/orders');
+            const res = await apiFetch('/api/products');
             if (!res.ok) throw new Error("Failed");
             return res.json();
         }
     });
+
+    const { data: ordersData = { data: [] }, isLoading } = useQuery({
+        queryKey: ['orders-history'],
+        queryFn: async () => {
+            const res = await apiFetch('/api/orders?limit=100');
+            if (!res.ok) throw new Error("Failed");
+            return res.json();
+        }
+    });
+    
+    const orders = Array.isArray(ordersData) ? ordersData : (ordersData.data || []);
 
     // Server already filters by role via JWT — this is an extra client-side safety check
     const filteredOrders = orders.filter((o: any) => {
@@ -56,26 +73,51 @@ export default function OrderHistory() {
         onError: (err: any) => toast.error(err.message)
     });
 
-    // Feature 9: Reorder — pre-populate cart from past order items
+    // Feature 6.6: Reorder Price Handling
     const handleReorder = (order: any) => {
-        const cartItems = order.items?.map((item: any) => ({
-            product: { id: item.variant?.sku, name: item.product?.name || 'Unknown Product', category: '', description: '' },
-            variant: {
-                sku: item.variant?.sku,
-                name: item.variant?.name || 'Default',
-                price: item.variant?.price || 0,
-                product_id: ''
-            },
-            quantity: item.quantity
-        })) || [];
+        const diffs: any[] = [];
+        const cartItems = order.items?.map((item: any) => {
+            const sku = item.variant?.sku;
+            // Find current base price from products list
+            const productMatch = products.find(p => p.variants.some(v => v.sku === sku));
+            const variantMatch = productMatch?.variants.find(v => v.sku === sku);
+            const basePrice = (variantMatch as any)?.price ?? item.variant?.price;
+            
+            const currentPrice = getAdjustedPrice(sku, basePrice);
+            const oldPrice = item.variant?.price;
+
+            if (Math.abs(currentPrice - oldPrice) > 0.01) {
+                diffs.push({
+                    name: item.product?.name || 'Unknown',
+                    old: oldPrice,
+                    new: currentPrice
+                });
+            }
+
+            return {
+                product: { id: sku, name: item.product?.name || 'Unknown Product', category: '', description: '' },
+                variant: {
+                    sku,
+                    name: item.variant?.name || 'Default',
+                    price: currentPrice, // Apply current price
+                    product_id: ''
+                },
+                quantity: item.quantity
+            };
+        }) || [];
 
         if (cartItems.length === 0) {
             toast.error("No items to reorder");
             return;
         }
-        loadCart(cartItems);
-        toast.success(`${cartItems.length} item(s) loaded into cart!`);
-        navigate('/cart');
+
+        if (diffs.length > 0) {
+            setPendingReorder({ items: cartItems, diffs });
+        } else {
+            loadCart(cartItems);
+            toast.success(`${cartItems.length} item(s) loaded into cart!`);
+            navigate('/cart');
+        }
     };
 
     return (
@@ -214,6 +256,54 @@ export default function OrderHistory() {
                     })
                 )}
             </div>
+
+            {/* 6.6 Price Diff Modal */}
+            {pendingReorder && (
+                <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 animate-fade-in text-left">
+                    <div className="bg-card w-full max-w-sm rounded-3xl shadow-2xl p-6 space-y-4 animate-scale-in">
+                        <div className="flex items-center gap-3 text-accent mb-2">
+                            <AlertTriangle className="h-6 w-6" />
+                            <h2 className="text-xl font-heading font-black text-foreground">Price Changes</h2>
+                        </div>
+                        <p className="text-sm text-muted-foreground leading-relaxed">
+                            Prices for some items have changed since your last order. Please review the differences before proceeding:
+                        </p>
+                        
+                        <div className="space-y-3 max-h-48 overflow-y-auto pr-2">
+                            {pendingReorder.diffs.map((diff, i) => (
+                                <div key={i} className="bg-muted/50 rounded-xl p-3 border border-border/50">
+                                    <p className="text-xs font-bold text-foreground truncate">{diff.name}</p>
+                                    <div className="flex justify-between items-center mt-1">
+                                        <span className="text-[10px] text-muted-foreground line-through decoration-destructive/50">{formatCurrency(diff.old)}</span>
+                                        <span className="text-[10px] font-bold text-success">{formatCurrency(diff.new)}</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="flex flex-col gap-2 pt-2">
+                            <Button
+                                onClick={() => {
+                                    loadCart(pendingReorder.items);
+                                    toast.success("Order items updated with current prices");
+                                    navigate('/cart');
+                                    setPendingReorder(null);
+                                }}
+                                className="h-12 rounded-xl bg-accent text-accent-foreground font-heading font-bold"
+                            >
+                                Accept & Add to Cart
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                onClick={() => setPendingReorder(null)}
+                                className="h-10 text-xs font-semibold text-muted-foreground"
+                            >
+                                Cancel
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </MobileLayout>
     );
 }

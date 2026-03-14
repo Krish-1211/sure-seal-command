@@ -6,7 +6,7 @@ import { formatCurrency } from "@/lib/utils";
 import { toast } from "sonner";
 
 export function ProductCard(product: Product) {
-  const { name, category, image, variants } = product;
+  const { name, category, image_url, variants } = product;
   const { cart, addToCart, updateQuantity } = useCart();
   const [selectedVariantIndex, setSelectedVariantIndex] = useState(0);
 
@@ -40,9 +40,9 @@ export function ProductCard(product: Product) {
   return (
     <div className="bg-card rounded-2xl shadow-sm border border-border/40 overflow-hidden flex flex-col hover:shadow-md transition-all duration-300 group h-full">
       <div className="h-[200px] xl:h-[240px] w-full bg-white flex items-center justify-center border-b border-border/10 relative overflow-hidden p-2 md:p-4">
-        {image ? (
+        {image_url ? (
           <img
-            src={image}
+            src={image_url}
             alt={name}
             className="w-full h-full object-contain mix-blend-multiply transform transition-transform duration-500 group-hover:scale-105"
             onError={(e) => {

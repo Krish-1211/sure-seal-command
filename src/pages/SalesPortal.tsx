@@ -29,23 +29,25 @@ export default function SalesPortal() {
         }
     });
 
-    const { data: users = [], isLoading: loadingUsers } = useQuery({
+    const { data: usersData = { data: [] }, isLoading: loadingUsers } = useQuery({
         queryKey: ['users'],
         queryFn: async () => {
-            const res = await apiFetch('/api/users');
+            const res = await apiFetch('/api/users?limit=100');
             if (!res.ok) throw new Error("Failed to fetch users");
             return res.json();
         }
     });
+    const users = Array.isArray(usersData) ? usersData : (usersData.data || []);
 
-    const { data: orders = [], isLoading: loadingOrders } = useQuery({
+    const { data: ordersData = { data: [] }, isLoading: loadingOrders } = useQuery({
         queryKey: ['orders'],
         queryFn: async () => {
-            const res = await apiFetch('/api/orders');
+            const res = await apiFetch('/api/orders?limit=100');
             if (!res.ok) throw new Error("Failed to fetch orders");
             return res.json();
         }
     });
+    const orders = Array.isArray(ordersData) ? ordersData : (ordersData.data || []);
 
     const isLoading = loadingUsers || loadingOrders;
 

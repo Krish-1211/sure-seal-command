@@ -23,7 +23,7 @@ const Customers = () => {
   const [filter, setFilter] = useState<Filter>("all");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const { data: customers = [], isLoading } = useQuery<Customer[]>({
+  const { data: customersData = { data: [] }, isLoading } = useQuery({
     queryKey: ['customers'],
     queryFn: async () => {
       if (!navigator.onLine) {
@@ -31,7 +31,7 @@ const Customers = () => {
         return await db.getAll('customers');
       }
       try {
-        const res = await apiFetch('/api/customers');
+        const res = await apiFetch('/api/customers?limit=100');
         if (!res.ok) throw new Error("Failed to fetch customers");
         return res.json();
       } catch (err) {
@@ -40,6 +40,8 @@ const Customers = () => {
       }
     }
   });
+
+  const customers = Array.isArray(customersData) ? customersData : (customersData.data || []);
 
   const filtered = customers.filter(c => {
     const matchesFilter = filter === "all" || c.status === filter;

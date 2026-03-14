@@ -12,23 +12,22 @@ import { useState, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import { useLocationTracking } from "@/hooks/useLocationTracking";
 
-// Compress image using canvas before storing
-async function compressImage(file: File, maxW = 800, quality = 0.7): Promise<string> {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        const url = URL.createObjectURL(file);
-        img.onload = () => {
-            const scale = Math.min(maxW / img.width, maxW / img.height, 1);
-            const canvas = document.createElement('canvas');
-            canvas.width = img.width * scale;
-            canvas.height = img.height * scale;
-            canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
-            URL.revokeObjectURL(url);
-            resolve(canvas.toDataURL('image/jpeg', quality));
-        };
-        img.onerror = reject;
-        img.src = url;
-    });
+import imageCompression from 'browser-image-compression';
+
+// 6.3 Client-Side Photo Compression
+async function compressImage(file: File): Promise<string> {
+    const options = {
+        maxSizeMB: 0.5,
+        maxWidthOrHeight: 1024,
+        useWebWorker: true,
+    };
+    try {
+        const compressedFile = await imageCompression(file, options);
+        return await imageCompression.getDataUrlFromFile(compressedFile);
+    } catch (error) {
+        console.error("Compression failed", error);
+        throw error;
+    }
 }
 
 // Geocode an address to [lat, lng] using Nominatim (free OpenStreetMap)
@@ -102,23 +101,25 @@ export default function VisitRoute() {
         }).finally(() => setIsGeocoding(false));
     }, [navCustomer]);
 
-    const { data: customers = [], isLoading } = useQuery({
+    const { data: customersData = { data: [] }, isLoading } = useQuery({
         queryKey: ['customers'],
         queryFn: async () => {
-            const res = await apiFetch('/api/customers');
+            const res = await apiFetch('/api/customers?limit=100'); // Get more for route
             if (!res.ok) throw new Error("Failed");
             return res.json();
         }
     });
+    const customers = Array.isArray(customersData) ? customersData : customersData.data;
 
-    const { data: checkIns = [] } = useQuery({
-        queryKey: ['check-ins'],
+    const { data: checkInsData = { data: [] } } = useQuery({
+        queryKey: ['check-ins-today'],
         queryFn: async () => {
-            const res = await apiFetch('/api/check-ins');
-            if (!res.ok) return [];
+            const res = await apiFetch('/api/check-ins?limit=100');
+            if (!res.ok) return { data: [] };
             return res.json();
         }
     });
+    const checkIns = Array.isArray(checkInsData) ? checkInsData : checkInsData.data;
 
     // Sort customers by days since last visit (most overdue first)
     const sortedCustomers = [...customers].sort((a: any, b: any) =>

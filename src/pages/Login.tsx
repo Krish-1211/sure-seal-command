@@ -36,7 +36,14 @@ const Login = () => {
             if (res.ok) {
                 const { token, user } = await res.json();
                 login(user, token);
-                navigate("/dashboard");
+                
+                // 6.1 Customer Portal Redirection
+                if (user.role === 'customer') {
+                    navigate("/portal");
+                } else {
+                    navigate("/dashboard");
+                }
+                
                 toast.success(`Welcome back, ${user.name}!`);
             } else {
                 toast.error("Invalid username or password.");

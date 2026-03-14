@@ -58,6 +58,9 @@ pool.query('SELECT 1').then(() => console.log('✅ Connected to Supabase Postgre
 // Alias so all existing code using client.query() keeps working
 const client = { query: (t, v) => pool.query(t, v) };
 
+// ─── Config ──────────────────────────────────────────────────────────────────
+const FLEET_ONLINE_THRESHOLD_MINUTES = parseInt(process.env.FLEET_ONLINE_THRESHOLD_MINUTES) || 5;
+
 // ─── Auth Middleware ──────────────────────────────────────────────────────────
 async function requireAuth(req, res, next) {
     const authHeader = req.headers['authorization'];
@@ -87,6 +90,40 @@ function requireAdmin(req, res, next) {
         return res.status(403).json({ error: "Forbidden: Admin access required" });
     }
     next();
+}
+
+function requireCustomer(req, res, next) {
+    if (req.user?.role !== 'customer') {
+        return res.status(403).json({ error: "Forbidden: Customer access required" });
+    }
+    next();
+}
+
+// ─── Pagination Helper ────────────────────────────────────────────────────────
+async function getPaginated(req, baseSql, values = []) {
+    const page = parseInt(req.query.page) || 1;
+    let limit = parseInt(req.query.limit) || 25;
+    if (limit > 100) limit = 100;
+    if (limit < 1) limit = 25;
+    
+    const offset = (page - 1) * limit;
+    
+    // Count total
+    const countQuery = `SELECT COUNT(*) as total FROM (${baseSql}) as sub`;
+    const countRes = await client.query(countQuery, values);
+    const total = parseInt(countRes.rows[0].total);
+    
+    // Get data
+    const dataQuery = `${baseSql} LIMIT ${limit} OFFSET ${offset}`;
+    const dataRes = await client.query(dataQuery, values);
+    
+    return {
+        data: dataRes.rows,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+    };
 }
 
 // ─── Validation Helpers ───────────────────────────────────────────────────────
@@ -141,11 +178,14 @@ app.post("/api/login", async (req, res) => {
             return res.status(400).json({ error: "Username and password are required" });
         }
 
+        // 6.10 Cleanup revoked tokens periodically
+        client.query("DELETE FROM revoked_tokens WHERE revoked_at < NOW() - INTERVAL '8 hours'").catch(e => console.error("Revoke cleanup failed:", e));
+
         const usernameLower = username.toLowerCase().trim();
 
         // First, try to log in as a user (salesperson/admin)
         let result = await client.query(
-            'SELECT id, username, name, role, region, phone, email, password as pwd FROM users WHERE LOWER(username) = $1',
+            'SELECT id, username, name, role, region, phone, email, password as pwd, is_active FROM users WHERE LOWER(username) = $1',
             [usernameLower]
         );
 
@@ -199,7 +239,7 @@ app.post("/api/login", async (req, res) => {
 
         const user = result.rows[0];
 
-        if (user && user.active === false) {
+        if (user && user.is_active === false) {
             return res.status(401).json({ error: "Your account has been deactivated." });
         }
 
@@ -266,10 +306,12 @@ app.post("/api/fcm-token", requireAuth, async (req, res) => {
 // GET /api/products — public (salespeople need it before auth in dev)
 app.get("/api/products", async (req, res) => {
     try {
-        const pRes = await client.query('SELECT * FROM products');
+        // Renamed image to image_url (6.12) and added is_active filter (6.2)
+        const pRes = await client.query('SELECT id, handle, name, description, category, image_url, tags, is_active FROM products WHERE is_active = TRUE');
         const vRes = await client.query('SELECT * FROM product_variants');
         const mapped = pRes.rows.map(p => ({
             ...p,
+            image: p.image_url, // Keep compatibility for a bit
             variants: vRes.rows.filter(v => v.product_id === p.id).map(v => ({
                 ...v,
                 stockStatus: v.stock_status || 'in_stock',
@@ -367,9 +409,14 @@ const upload = multer({ storage: multer.memoryStorage() });
 // GET /api/users — auth required
 app.get("/api/users", requireAuth, async (req, res) => {
     try {
-        const result = await client.query('SELECT id, username, name, role, region, phone, email, monthly_target, created_at, active FROM users');
-        const mapped = result.rows.map(u => ({ ...u, monthlyTarget: parseFloat(u.monthly_target) || 20000 }));
-        res.json(mapped);
+        // Added is_active filter (6.2) and pagination (6.9)
+        const paginated = await getPaginated(req, 'SELECT id, username, name, role, region, phone, email, monthly_target, created_at, is_active FROM users WHERE is_active = TRUE');
+        paginated.data = paginated.data.map(u => ({ 
+            ...u, 
+            monthlyTarget: parseFloat(u.monthly_target) || 20000,
+            active: u.is_active // Bridge compatibility
+        }));
+        res.json(paginated); // Note: frontend might need update to handle { data, total... }
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -378,23 +425,35 @@ app.get("/api/users", requireAuth, async (req, res) => {
 // GET /api/customers — auth required
 app.get("/api/customers", requireAuth, async (req, res) => {
     try {
-        let query = 'SELECT * FROM customers';
+        // 6.7 Next Stop Algorithm & 6.2 Filter is_active
+        let baseQuery = 'SELECT * FROM customers WHERE is_active = TRUE';
         let values = [];
 
         if (req.user.role === 'salesman') {
-            query += ' WHERE assigned_sales_rep = $1';
+            baseQuery += ' AND assigned_sales_rep = $1';
             values.push(req.user.id);
         }
 
-        const result = await client.query(query, values);
-        const mapped = result.rows.map(c => ({
+        // Apply custom sorting/limiting if provided for Next Stop (6.7)
+        if (req.query.sort === 'last_visit_asc') {
+            baseQuery += ' ORDER BY last_visit ASC NULLS FIRST';
+        }
+
+        const paginated = await getPaginated(req, baseQuery, values);
+        paginated.data = paginated.data.map(c => ({
             ...c,
             lastVisit: c.last_visit,
             pricingLevelId: c.pricing_level_id,
             creditLimit: parseFloat(c.credit_limit) || 5000,
             outstandingBalance: parseFloat(c.outstanding_balance) || 0
         }));
-        res.json(mapped);
+        
+        // If limit=1 and no page, return just the object for simplicity or consistent paginated
+        if (req.query.limit === '1' && !req.query.page) {
+            return res.json(paginated.data[0] || null);
+        }
+        
+        res.json(paginated);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -548,28 +607,32 @@ app.delete("/api/promotions/:id", requireAuth, requireAdmin, async (req, res) =>
 // GET /api/orders — server-side filtering by userId for salesmen (fix #4)
 app.get("/api/orders", requireAuth, async (req, res) => {
     try {
-        let query = `
+        let baseSql = `
             SELECT o.*, u.name as user_name 
             FROM orders o 
             LEFT JOIN users u ON o.user_id = u.id
         `;
-        const values = [];
+        let values = [];
+        let whereClauses = [];
 
         // Salesmen only see their own orders — filter at SQL level, not client-side
         if (req.user.role === 'customer') {
-            query += ` WHERE o.customer_id = $1`;
+            whereClauses.push(`o.customer_id = $${values.length + 1}`);
             values.push(req.user.id);
         } else if (req.user.role !== 'admin') {
-            query += ` WHERE o.user_id = $1`;
+            whereClauses.push(`o.user_id = $${values.length + 1}`);
             values.push(req.user.id);
         }
 
-        query += ` ORDER BY o.created_at DESC`;
+        if (whereClauses.length > 0) {
+            baseSql += ` WHERE ` + whereClauses.join(' AND ');
+        }
 
-        const oRes = await client.query(query, values);
+        baseSql += ` ORDER BY o.created_at DESC`;
 
-        // Fetch only relevant order_items
-        const orderIds = oRes.rows.map(o => o.id);
+        const paginated = await getPaginated(req, baseSql, values);
+        const orderIds = paginated.data.map(o => o.id);
+        
         let items = [];
         if (orderIds.length > 0) {
             const iRes = await client.query(
@@ -579,7 +642,7 @@ app.get("/api/orders", requireAuth, async (req, res) => {
             items = iRes.rows;
         }
 
-        const mapped = oRes.rows.map(o => ({
+        paginated.data = paginated.data.map(o => ({
             id: o.id,
             orderNumber: o.order_number,
             status: o.status || 'confirmed',
@@ -605,7 +668,7 @@ app.get("/api/orders", requireAuth, async (req, res) => {
             }))
         }));
 
-        res.json(mapped);
+        res.json(paginated);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -717,52 +780,68 @@ app.delete("/api/drafts/:id", requireAuth, async (req, res) => {
 // ─── Feature 6: Messages ─────────────────────────────────────────────────────
 app.get("/api/messages", requireAuth, async (req, res) => {
     try {
-        const result = await client.query(
-            `SELECT m.*, u.name as from_name FROM messages m
-             LEFT JOIN users u ON m.from_user_id = u.id
-             WHERE m.to_user_id = $1 OR m.from_user_id = $1
-             ORDER BY m.created_at DESC LIMIT 50`,
-            [req.user.id]
-        );
-        res.json(result.rows.map(m => ({
+        // 6.4 Broadcast messages & 6.9 Pagination
+        const baseSql = `
+            SELECT m.*, u.name as from_name FROM messages m
+            LEFT JOIN users u ON m.from_user_id = u.id
+            WHERE m.to_user_id = $1 OR m.from_user_id = $1 OR m.is_broadcast = true
+            ORDER BY m.created_at DESC
+        `;
+        const paginated = await getPaginated(req, baseSql, [req.user.id]);
+        paginated.data = paginated.data.map(m => ({
             id: m.id, body: m.body, isRead: m.is_read,
             fromUserId: m.from_user_id, fromName: m.from_name,
-            toUserId: m.to_user_id, createdAt: m.created_at
-        })));
+            toUserId: m.to_user_id, createdAt: m.created_at,
+            isBroadcast: m.is_broadcast
+        }));
+        res.json(paginated);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.post("/api/messages", requireAuth, async (req, res) => {
     try {
-        const { toUserId, body } = req.body;
-        if (!toUserId || !body?.trim()) return res.status(400).json({ error: 'toUserId and body are required' });
+        const { toUserId, body, isBroadcast } = req.body;
+        if (!isBroadcast && (!toUserId || !body?.trim())) {
+            return res.status(400).json({ error: 'toUserId and body are required' });
+        }
+        if (isBroadcast && (!body?.trim())) {
+            return res.status(400).json({ error: 'body is required for broadcast' });
+        }
+
+        const finalToUserId = isBroadcast ? null : toUserId;
         const result = await client.query(
-            'INSERT INTO messages (from_user_id, to_user_id, body) VALUES ($1,$2,$3) RETURNING *',
-            [req.user.id, toUserId, body.trim()]
+            'INSERT INTO messages (from_user_id, to_user_id, body, is_broadcast) VALUES ($1,$2,$3,$4) RETURNING *',
+            [req.user.id, finalToUserId, body.trim(), !!isBroadcast]
         );
         res.status(201).json(result.rows[0]);
 
         // Real-time Push Notification Dispatch
         if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
             try {
-                const tokenRes = await client.query('SELECT token FROM fcm_tokens WHERE user_id = $1 ORDER BY updated_at DESC LIMIT 1', [toUserId]);
-                if (tokenRes.rows.length > 0) {
-                    const fcmToken = tokenRes.rows[0].token;
-                    const senderRes = await client.query('SELECT name FROM users WHERE id = $1', [req.user.id]);
-                    const senderName = senderRes.rows[0]?.name || "Someone";
+                const senderRes = await client.query('SELECT name FROM users WHERE id = $1', [req.user.id]);
+                const senderName = senderRes.rows[0]?.name || "Someone";
+                const payload = {
+                    notification: {
+                        title: isBroadcast ? `Broadcast: ${senderName}` : `New Message from ${senderName}`,
+                        body: body.trim()
+                    },
+                    data: { url: '/messages' }
+                };
 
-                    console.log(`Push Alert: Attempting send to ${toUserId}...`);
-                    await admin.messaging().send({
-                        token: fcmToken,
-                        notification: {
-                            title: `New Message from ${senderName}`,
-                            body: body.trim()
-                        },
-                        data: { url: '/messages' }
-                    });
-                    console.log(`Push Alert: Sent successfully to ${toUserId}`);
+                if (isBroadcast) {
+                    await admin.messaging().sendToTopic('all-reps', payload);
+                    console.log(`Push Alert: Broadcast sent to topic all-reps`);
                 } else {
-                    console.log(`Push Alert: No token found for ${toUserId}`);
+                    const tokenRes = await client.query('SELECT token FROM fcm_tokens WHERE user_id = $1 ORDER BY updated_at DESC LIMIT 1', [toUserId]);
+                    if (tokenRes.rows.length > 0) {
+                        const fcmToken = tokenRes.rows[0].token;
+                        console.log(`Push Alert: Attempting send to ${toUserId}...`);
+                        await admin.messaging().send({
+                            token: fcmToken,
+                            ...payload
+                        });
+                        console.log(`Push Alert: Sent successfully to ${toUserId}`);
+                    }
                 }
             } catch (e) {
                 console.error("Push Alert Failed:", e.message);
@@ -779,6 +858,20 @@ app.patch("/api/messages/:id/read", requireAuth, async (req, res) => {
 });
 
 // ─── Phase 2.5: Activity Logs ────────────────────────────────────────────────
+app.get("/api/activity", requireAuth, async (req, res) => {
+    try {
+        let baseSql = `SELECT a.*, u.name as user_name FROM activity_logs a LEFT JOIN users u ON a.user_id = u.id`;
+        const values = [];
+        if (req.user.role !== 'admin') {
+            baseSql += ` WHERE a.user_id = $1`;
+            values.push(req.user.id);
+        }
+        baseSql += ` ORDER BY a.timestamp DESC`;
+        const paginated = await getPaginated(req, baseSql, values);
+        res.json(paginated);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.post("/api/activity", requireAuth, async (req, res) => {
     try {
         const { action, reference_id, latitude, longitude, device_id } = req.body;
@@ -851,14 +944,17 @@ app.post("/api/location", requireAuth, async (req, res) => {
 // ─── GPS Fleet – admin sees all reps ─────────────────────────────────────────
 app.get("/api/fleet", requireAuth, requireAdmin, async (req, res) => {
     try {
+        // 6.11 Fleet Threshold
         const result = await client.query(
             `SELECT id, name, email, last_lat, last_lng, location_updated_at
-             FROM users WHERE role='salesman' AND last_lat IS NOT NULL`
+             FROM users 
+             WHERE role='salesman' AND is_active = TRUE AND last_lat IS NOT NULL`
         );
         res.json(result.rows.map(r => ({
             id: r.id, name: r.name, email: r.email,
             lat: parseFloat(r.last_lat), lng: parseFloat(r.last_lng),
-            updatedAt: r.location_updated_at
+            updatedAt: r.location_updated_at,
+            isOnline: r.location_updated_at ? (new Date() - new Date(r.location_updated_at)) < (FLEET_ONLINE_THRESHOLD_MINUTES * 60 * 1000) : false
         })));
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -867,23 +963,24 @@ app.get("/api/fleet", requireAuth, requireAdmin, async (req, res) => {
 
 app.get("/api/check-ins", requireAuth, async (req, res) => {
     try {
-        let query = `
+        let baseSql = `
             SELECT c.*, u.name as user_name
             FROM check_ins c LEFT JOIN users u ON c.user_id = u.id
         `;
         const values = [];
         if (req.user.role !== 'admin') {
-            query += ` WHERE c.user_id = $1`;
+            baseSql += ` WHERE c.user_id = $1`;
             values.push(req.user.id);
         }
-        query += ` ORDER BY c.created_at DESC LIMIT 100`;
-        const result = await client.query(query, values);
-        res.json(result.rows.map(r => ({
+        baseSql += ` ORDER BY c.created_at DESC`;
+        const paginated = await getPaginated(req, baseSql, values);
+        paginated.data = paginated.data.map(r => ({
             id: r.id, userId: r.user_id, userName: r.user_name,
             customerId: r.customer_id, customerName: r.customer_name,
-            notes: r.notes, hasPhoto: !!r.photo_data,
-            photoData: r.photo_data, createdAt: r.created_at
-        })));
+            notes: r.notes, hasPhoto: !!(r.photo_url),
+            photoUrl: r.photo_url, createdAt: r.created_at
+        }));
+        res.json(paginated);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -934,7 +1031,8 @@ app.post("/api/check-ins", requireAuth, upload.single('photo'), async (req, res)
 app.patch("/api/users/:id/status", requireAuth, requireAdmin, async (req, res) => {
     try {
         const { active } = req.body;
-        await client.query('UPDATE users SET active = $1 WHERE id = $2', [active, req.params.id]);
+        // 6.2 soft delete using is_active
+        await client.query('UPDATE users SET is_active = $1 WHERE id = $2', [active, req.params.id]);
 
         if (active === false) {
             // Revoke all tokens for this user by inserting a wildcard record

@@ -30,14 +30,15 @@ const SalesmanDashboard = () => {
   const unreadCount = messages.filter((m: any) => !m.isRead && m.toUserId === user?.id).length;
 
   // Most overdue customer for NextStopCard
-  const { data: customers = [] } = useQuery({
+  const { data: customersData = { data: [] } } = useQuery({
     queryKey: ['customers'],
     queryFn: async () => {
-      const res = await apiFetch('/api/customers');
-      if (!res.ok) return [];
+      const res = await apiFetch('/api/customers?limit=100');
+      if (!res.ok) return { data: [] };
       return res.json();
     }
   });
+  const customers = Array.isArray(customersData) ? customersData : (customersData.data || []);
   const nextStop = [...customers].sort((a: any, b: any) => {
     const daysSince = (d: string | null) => d ? Math.floor((Date.now() - new Date(d).getTime()) / 86400000) : 999;
     return daysSince(b.lastVisit || b.last_visit) - daysSince(a.lastVisit || a.last_visit);
@@ -175,14 +176,15 @@ const AdminDashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const { data: orders = [], isLoading } = useQuery({
+  const { data: ordersData = { data: [] }, isLoading } = useQuery({
     queryKey: ['admin-orders'],
     queryFn: async () => {
-      const res = await apiFetch('/api/orders');
+      const res = await apiFetch('/api/orders?limit=10');
       if (!res.ok) throw new Error("Failed to fetch orders");
       return res.json();
     }
   });
+  const orders = Array.isArray(ordersData) ? ordersData : (ordersData.data || []);
 
   // Unread message count for badge
   const { data: messages = [] } = useQuery({
@@ -298,14 +300,15 @@ const CustomerDashboard = () => {
   const navigate = useNavigate();
   const { loadCart } = useCart();
 
-  const { data: orders = [], isLoading: isLoadingOrders } = useQuery({
+  const { data: ordersData = { data: [] }, isLoading: isLoadingOrders } = useQuery({
     queryKey: ['customer-orders'],
     queryFn: async () => {
-      const res = await apiFetch('/api/orders');
+      const res = await apiFetch('/api/orders?limit=10');
       if (!res.ok) throw new Error("Failed to fetch orders");
       return res.json();
     }
   });
+  const orders = Array.isArray(ordersData) ? ordersData : (ordersData.data || []);
 
   const { data: promotions = [] } = useQuery({
     queryKey: ['promotions'],

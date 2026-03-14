@@ -35,6 +35,13 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+const CustomerRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.role !== 'customer') return <Navigate to="/dashboard" replace />;
+  return <>{children}</>;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -48,6 +55,14 @@ const App = () => (
                 <Route path="/login" element={<Login />} />
                 <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                 <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                
+                {/* 6.1 Customer Portal Routes */}
+                <Route path="/portal" element={<CustomerRoute><Dashboard /></CustomerRoute>} />
+                <Route path="/portal/history" element={<CustomerRoute><OrderHistory /></CustomerRoute>} />
+                <Route path="/portal/catalog" element={<CustomerRoute><Catalog /></CustomerRoute>} />
+                <Route path="/portal/profile" element={<CustomerRoute><Profile /></CustomerRoute>} />
+                <Route path="/portal/help" element={<CustomerRoute><HelpSupport /></CustomerRoute>} />
+                
                 <Route path="/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
                 <Route path="/customers/:id" element={<ProtectedRoute><CustomerDetails /></ProtectedRoute>} />
                 <Route path="/catalog" element={<ProtectedRoute><Catalog /></ProtectedRoute>} />

@@ -18,15 +18,16 @@ export default function Messages() {
     const [usePolling, setUsePolling] = useState(false);
     const endRef = useRef<HTMLDivElement>(null);
 
-    const { data: messages = [], isLoading, refetch } = useQuery({
+    const { data: messagesData = { data: [] }, isLoading, refetch } = useQuery({
         queryKey: ['messages'],
         queryFn: async () => {
-            const res = await apiFetch('/api/messages');
+            const res = await apiFetch('/api/messages?limit=200'); // Get more for chat
             if (!res.ok) throw new Error("Failed");
             return res.json();
         },
-        refetchInterval: usePolling ? 30000 : false // poll every 30s if WS fails
+        refetchInterval: usePolling ? 30000 : false 
     });
+    const messages = Array.isArray(messagesData) ? messagesData : (messagesData.data || []);
 
     useEffect(() => {
         if (!user) return;
@@ -68,38 +69,53 @@ export default function Messages() {
         };
     }, [user, refetch]);
 
-    const { data: users = [] } = useQuery({
+    const { data: usersData = { data: [] } } = useQuery({
         queryKey: ['users'],
         queryFn: async () => {
-            const res = await apiFetch('/api/users');
+            const res = await apiFetch('/api/users?limit=100');
             if (!res.ok) throw new Error("Failed");
             return res.json();
         }
     });
+    const users = Array.isArray(usersData) ? usersData : (usersData.data || []);
 
-    // Get list of conversation partners
+    // Conversation partners + Broadcast option for admins
     const otherUsers = users.filter((u: any) => u.id !== user?.id);
+    const showBroadcast = user?.role === 'admin';
 
     // Auto-select first user
     useEffect(() => {
-        if (otherUsers.length > 0 && !selectedUserId) {
-            setSelectedUserId(user?.role === 'admin' ? otherUsers[0]?.id : 'admin-1');
+        if (!selectedUserId) {
+            if (showBroadcast) setSelectedUserId('broadcast');
+            else if (otherUsers.length > 0) setSelectedUserId('admin-1');
         }
     }, [otherUsers.length]);
 
     // Filter messages for selected conversation
-    const conversation = messages.filter((m: any) =>
-        (m.fromUserId === user?.id && m.toUserId === selectedUserId) ||
-        (m.fromUserId === selectedUserId && m.toUserId === user?.id)
-    ).reverse();
+    const conversation = messages.filter((m: any) => {
+        if (selectedUserId === 'broadcast') return m.isBroadcast;
+        return (
+            (m.fromUserId === user?.id && m.toUserId === selectedUserId && !m.isBroadcast) ||
+            (m.fromUserId === selectedUserId && m.toUserId === user?.id && !m.isBroadcast) ||
+            (m.isBroadcast && !isMine(m)) // Show broadcasts in regular convos too? 
+            // Actually, keep it simple: if 'broadcast' selected, show ONLY broadcasts.
+        );
+    }).reverse();
+
+    function isMine(m: any) { return m.fromUserId === user?.id; }
 
     const selectedConvoUser = users.find((u: any) => u.id === selectedUserId);
 
     const sendMutation = useMutation({
         mutationFn: async () => {
+            const isBroadcast = selectedUserId === 'broadcast';
             const res = await apiFetch('/api/messages', {
                 method: 'POST',
-                body: JSON.stringify({ toUserId: selectedUserId, body })
+                body: JSON.stringify({ 
+                    toUserId: isBroadcast ? null : selectedUserId, 
+                    body,
+                    isBroadcast 
+                })
             });
             if (!res.ok) throw new Error("Failed to send");
             return res.json();
@@ -145,7 +161,9 @@ export default function Messages() {
                 </button>
                 <div className="flex-1">
                     <h1 className="text-lg font-heading font-bold text-foreground">Messages</h1>
-                    {selectedConvoUser && (
+                    {selectedUserId === 'broadcast' ? (
+                        <p className="text-xs text-accent font-bold">Broadcast to All Reps</p>
+                    ) : selectedConvoUser && (
                         <p className="text-xs text-muted-foreground">{selectedConvoUser.name}</p>
                     )}
                 </div>
@@ -154,8 +172,19 @@ export default function Messages() {
                 </div>
             </header>
 
-            {/* Conversation selector (admin sees all reps; reps only see admin) */}
+            {/* Conversation selector */}
             <div className="flex gap-2 px-4 py-3 overflow-x-auto border-b border-border/50">
+                {showBroadcast && (
+                    <button
+                        onClick={() => setSelectedUserId('broadcast')}
+                        className={`flex-shrink-0 flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all ${selectedUserId === 'broadcast' ? 'bg-accent/10 ring-1 ring-accent/30' : 'hover:bg-muted'}`}
+                    >
+                        <div className="h-9 w-9 rounded-full bg-accent/20 flex items-center justify-center text-accent text-xs">
+                            <Send className="h-4 w-4" />
+                        </div>
+                        <span className="text-[10px] font-bold text-accent">Broadcast</span>
+                    </button>
+                )}
                 {otherUsers.map((u: any) => (
                     <button
                         key={u.id}
