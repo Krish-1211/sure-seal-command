@@ -26,9 +26,10 @@
 15. [Promotion & Offers Management](#15-promotion--offers-management)
 16. [Target & KPI Management](#16-target--kpi-management)
 17. [Offline Support & Sync](#17-offline-support--sync)
-18. [Backend API Architecture](#18-backend-api-architecture)
-19. [Database Architecture (Supabase)](#19-database-architecture-supabase)
-20. [Deployment & Performance](#20-deployment--performance)
+18. [Pagination & Soft Deletes (Phase 6)](#18-pagination--soft-deletes)
+19. [Backend API Architecture](#19-backend-api-architecture)
+20. [Database Architecture (Supabase)](#20-database-architecture-supabase)
+21. [Deployment & Performance](#21-deployment--performance)
 
 ---
 
@@ -186,24 +187,45 @@ Secure, database-driven login system.
 
 ---
 
-## 18. Backend API Architecture
+---
+
+## 18. Pagination & Soft Deletes (Phase 6)
+
+### Pagination Overview
+To handle large datasets efficiently, the following endpoints were updated to return paginated results `{ data: [], total, page, totalPages }`:
+- `/api/orders`
+- `/api/customers`
+- `/api/products`
+- `/api/messages`
+- `/api/activity`
+
+### Soft Deletes
+- **Logic:** `is_active` boolean field added to `users`, `customers`, and `products`.
+- **Constraint:** Database triggers prevent hard `DELETE` operations on core tables to maintain historical data integrity.
+- **Filtering:** GET endpoints naturally exclude deactivated items.
+
+---
+
+## 19. Backend API Architecture
 - **Environment:** Express.js on Node 20+.
-- **Authorisation:** `requireAuth` and `requireAdmin` middleware.
+- **Authorisation:** `requireAuth`, `requireAdmin`, and `requireCustomer` middleware.
 - **Efficiency:** Reduced connection pooling to prevent Supabase session exhaustion in serverless mode.
 
 ---
 
-## 19. Database Architecture (Supabase)
+## 20. Database Architecture (Supabase)
 ### Core Extensions
 - `gen_random_uuid()` for primary keys.
-- `pg` driver with connection resilience.
 - Sequential sequences for order numbers.
+- **Soft Delete Triggers:** `prevent_hard_delete` function on `users` and `customers`.
 
 ---
 
-## 20. Deployment & Performance
+## 21. Deployment & Performance
 - **Hosting:** Vercel (Front-end + Serverless Functions).
-- **Optimization:** Image compression on check-ins to reduce DB storage overhead.
+- **Optimization:** 
+  - Image compression on check-ins (Phase 6).
+  - Background FCM token cleanup.
 - **SSL Enforcement:** Mandated for all database and API traffic.
 
 ---
@@ -212,8 +234,9 @@ Secure, database-driven login system.
 - [x] Push Notifications (FCM).
 - [x] Offline Database (IndexedDB).
 - [x] Pricing Bulk Import (CSV).
-- [x] Multi-user RBAC system.
-- [x] Real-time Messaging.
+- [x] Multi-user RBAC system (Admin, Salesman, Customer).
+- [x] Real-time Messaging & Broadcasts.
+- [x] Client-side Image Compression.
 
 ---
 *Last updated: 14 March 2026*

@@ -109,7 +109,7 @@ export default function VisitRoute() {
             return res.json();
         }
     });
-    const customers = Array.isArray(customersData) ? customersData : customersData.data;
+    const customers = Array.isArray(customersData) ? customersData : (customersData.data || []);
 
     const { data: checkInsData = { data: [] } } = useQuery({
         queryKey: ['check-ins-today'],
@@ -119,12 +119,12 @@ export default function VisitRoute() {
             return res.json();
         }
     });
-    const checkIns = Array.isArray(checkInsData) ? checkInsData : checkInsData.data;
+    const checkIns = Array.isArray(checkInsData) ? checkInsData : (checkInsData.data || []);
 
     // Sort customers by days since last visit (most overdue first)
-    const sortedCustomers = [...customers].sort((a: any, b: any) =>
+    const sortedCustomers = Array.isArray(customers) ? [...customers].sort((a: any, b: any) =>
         daysSince(a.lastVisit || a.last_visit) - daysSince(b.lastVisit || b.last_visit)
-    ).reverse();
+    ).reverse() : [];
 
     const checkInMutation = useMutation({
         mutationFn: async ({ customerId, customerName }: { customerId: string; customerName: string }) => {

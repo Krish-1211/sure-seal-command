@@ -6,15 +6,19 @@ export async function syncMasterData() {
 
     try {
         const [customersRes, productsRes, pricingRes] = await Promise.all([
-            apiFetch('/api/customers'),
-            apiFetch('/api/products'),
+            apiFetch('/api/customers?limit=1000'), // Get all for sync
+            apiFetch('/api/products'), // Products is not paginated on server currently, but let's be safe
             apiFetch('/api/pricing-levels')
         ]);
 
         if (customersRes.ok && productsRes.ok && pricingRes.ok) {
-            const customers = await customersRes.json();
-            const products = await productsRes.json();
+            const customersData = await customersRes.json();
+            const productsData = await productsRes.json();
             const pricing = await pricingRes.json();
+
+            // Handle both array and paginated object formats
+            const customers = Array.isArray(customersData) ? customersData : (customersData.data || []);
+            const products = Array.isArray(productsData) ? productsData : (productsData.data || []);
 
             const db = await getDB();
 

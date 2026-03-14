@@ -59,8 +59,8 @@
     - **Fields:** `id`, `name`, `address`, `phone`, `email`, `status`, `last_visit`, `outstanding_balance`, `credit_limit`, `pricing_level_id`.
     - **Usage:** CRM data for sales visits and order defaults.
 3.  **`products` & `product_variants`**:
-    - **Fields:** `handle`, `name`, `description`, `category`, `image`, `sku`, `price`, `stock`.
-    - **Usage:** Master product listing and inventory tracking.
+    - **Fields:** `handle`, `name`, `description`, `category`, `image_url`, `sku`, `price`, `stock`, `is_active`.
+    - **Usage:** Master product listing with soft-delete support and high-res image links.
 4.  **`pricing_levels`**:
     - **Fields:** `id`, `name`, `description`, `prices` (**JSONB**).
     - **Usage:** Stores custom prices for every SKU across different B2B tiers (Wholesale, Level 1-3, etc.).
@@ -125,10 +125,10 @@
 
 ## 6. API Endpoints
 
-- **Auth:** `POST /api/login`
-- **Catalog:** `GET /api/products`, `GET /api/pricing-levels`
-- **Customers:** `GET /api/customers`, `POST /api/customers`, `PUT /api/customers/:id`
-- **Orders:** `GET /api/orders`, `POST /api/orders`, `PATCH /api/orders/:id/cancel`
+- **Auth:** `POST /api/login` (Auto-purges expired tokens)
+- **Catalog:** `GET /api/products`, `GET /api/pricing-levels` (Paginated)
+- **Customers:** `GET /api/customers`, `POST /api/customers`, `PUT /api/customers/:id` (Paginated, Soft Delete)
+- **Orders:** `GET /api/orders`, `POST /api/orders`, `PATCH /api/orders/:id/cancel` (Paginated)
 - **GPS/Fleet:** `POST /api/location`, `GET /api/fleet`
-- **Visits:** `POST /api/check-ins`, `GET /api/check-ins`
-- **Messaging:** `GET /api/messages`, `POST /api/messages`
+- **Visits:** `POST /api/check-ins`, `GET /api/check-ins` (With Client-side compression)
+- **Messaging:** `GET /api/messages`, `POST /api/messages` (Broadcast support)

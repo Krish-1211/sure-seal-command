@@ -18,15 +18,16 @@ const SalesmanDashboard = () => {
   const navigate = useNavigate();
 
   // Unread message count for badge
-  const { data: messages = [] } = useQuery({
+  const { data: messagesData = { data: [] } } = useQuery({
     queryKey: ['messages'],
     queryFn: async () => {
-      const res = await apiFetch('/api/messages');
-      if (!res.ok) return [];
+      const res = await apiFetch('/api/messages?limit=50');
+      if (!res.ok) return { data: [] };
       return res.json();
     },
     refetchInterval: 15000
   });
+  const messages = Array.isArray(messagesData) ? messagesData : (messagesData.data || []);
   const unreadCount = messages.filter((m: any) => !m.isRead && m.toUserId === user?.id).length;
 
   // Most overdue customer for NextStopCard
@@ -187,15 +188,16 @@ const AdminDashboard = () => {
   const orders = Array.isArray(ordersData) ? ordersData : (ordersData.data || []);
 
   // Unread message count for badge
-  const { data: messages = [] } = useQuery({
+  const { data: messagesData = { data: [] } } = useQuery({
     queryKey: ['messages'],
     queryFn: async () => {
-      const res = await apiFetch('/api/messages');
-      if (!res.ok) return [];
+      const res = await apiFetch('/api/messages?limit=50');
+      if (!res.ok) return { data: [] };
       return res.json();
     },
     refetchInterval: 15000
   });
+  const messages = Array.isArray(messagesData) ? messagesData : (messagesData.data || []);
   const unreadCount = messages.filter((m: any) => !m.isRead && m.toUserId === user?.id).length;
 
   const totalRevenue = orders.reduce((acc: number, val: any) => acc + (Number(val.grandTotal) || 0), 0);
@@ -313,11 +315,13 @@ const CustomerDashboard = () => {
   const { data: promotions = [] } = useQuery({
     queryKey: ['promotions'],
     queryFn: async () => {
-      const res = await fetch('/api/promotions');
-      if (!res.ok) throw new Error("Failed to fetch promotions");
+      const res = await apiFetch('/api/promotions');
+      if (!res.ok) return [];
       return res.json();
     }
   });
+  const promotionsList = Array.isArray(promotions) ? promotions : [];
+  const activePromos = promotionsList.filter((p: any) => p.active);
 
   const handleReorder = (order: any) => {
     const cartItems = order.items?.map((item: any) => ({
@@ -382,10 +386,10 @@ const CustomerDashboard = () => {
           </div>
         </div>
 
-        {promotions.filter((p: any) => p.active).length > 0 && (
+        {activePromos.length > 0 && (
           <div className="pt-2 animate-slide-up md:w-[70%] lg:w-[60%] mx-auto" style={{ animationDelay: "0.15s" }}>
             <div className="flex gap-4 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-2 items-center">
-              {promotions.filter((p: any) => p.active).map((promo: any) => (
+              {activePromos.map((promo: any) => (
                 <div key={promo.id} className="min-w-[100%] snap-center bg-card rounded-[1.25rem] overflow-hidden shadow-lg border border-border/50 flex flex-col relative aspect-[2/1] md:aspect-[2.5/1] bg-black">
                   {promo.image_url && (
                     <div className="absolute inset-0 w-full h-full">
@@ -401,9 +405,9 @@ const CustomerDashboard = () => {
                 </div>
               ))}
             </div>
-            {promotions.filter((p: any) => p.active).length > 1 && (
+            {activePromos.length > 1 && (
               <div className="flex justify-center gap-1.5 mt-2">
-                {promotions.filter((p: any) => p.active).map((_: any, i: number) => (
+                {activePromos.map((_: any, i: number) => (
                   <div key={i} className="w-1.5 h-1.5 rounded-full bg-primary/30"></div>
                 ))}
               </div>
