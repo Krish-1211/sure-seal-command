@@ -12,6 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import { formatCurrency } from "@/lib/utils";
 import { apiFetch } from "@/lib/apiFetch";
 import { NotificationBanner } from "@/components/NotificationBanner";
+import { formatDistanceToNow } from "date-fns";
 
 const SalesmanDashboard = () => {
   const { user } = useAuth();
@@ -44,6 +45,34 @@ const SalesmanDashboard = () => {
     const daysSince = (d: string | null) => d ? Math.floor((Date.now() - new Date(d).getTime()) / 86400000) : 999;
     return daysSince(b.lastVisit || b.last_visit) - daysSince(a.lastVisit || a.last_visit);
   })[0] as any;
+
+  // Real Check-ins for Activity Feed
+  const { data: checkInsData = { data: [] } } = useQuery({
+    queryKey: ['check-ins'],
+    queryFn: async () => {
+      const res = await apiFetch('/api/check-ins?limit=10');
+      if (!res.ok) return { data: [] };
+      return res.json();
+    }
+  });
+  const checkIns = Array.isArray(checkInsData) ? checkInsData : (checkInsData.data || []);
+
+  // Real Orders for Activity Feed
+  const { data: recentOrdersData = { data: [] } } = useQuery({
+    queryKey: ['salesman-orders'],
+    queryFn: async () => {
+      const res = await apiFetch('/api/orders?limit=10');
+      if (!res.ok) return { data: [] };
+      return res.json();
+    }
+  });
+  const recentOrders = Array.isArray(recentOrdersData) ? recentOrdersData : (recentOrdersData.data || []);
+
+  // Merge activities
+  const allActivity = [
+    ...checkIns.map((ci: any) => ({ ...ci, type: 'checkin', date: new Date(ci.createdAt) })),
+    ...recentOrders.map((ro: any) => ({ ...ro, type: 'order', date: new Date(ro.createdAt) }))
+  ].sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 5);
 
   return (
     <>
@@ -128,43 +157,41 @@ const SalesmanDashboard = () => {
           </div>
         </div>
 
-        {/* Demo Activity Feed */}
         <div className="pt-2 animate-slide-up" style={{ animationDelay: "0.4s" }}>
           <h3 className="text-sm font-heading font-bold uppercase tracking-wider text-muted-foreground mb-4">
             Recent Activity
           </h3>
           <div className="space-y-3">
-            <div className="bg-card border border-border/50 rounded-xl p-4 shadow-sm opacity-80">
-              <div className="flex justify-between items-start mb-2">
-                <div>
-                  <p className="font-bold text-foreground font-heading flex gap-2 items-center"><MapPin className="w-3 h-3" /> Checked In</p>
-                  <p className="text-xs text-muted-foreground">Bunnings Port Melbourne</p>
-                </div>
-                <p className="text-xs text-muted-foreground">10 mins ago</p>
+            {allActivity.length === 0 ? (
+              <div className="bg-card border border-border/50 rounded-xl p-6 text-center shadow-sm">
+                <p className="text-sm text-muted-foreground">No recent activity found.</p>
               </div>
-            </div>
-
-            <div className="bg-card border border-border/50 rounded-xl p-4 shadow-sm opacity-80">
-              <div className="flex justify-between items-start mb-2">
-                <div>
-                  <p className="font-bold text-foreground font-heading flex gap-2 items-center"><Package className="w-3 h-3" /> Order Submitted</p>
-                  <p className="text-xs text-muted-foreground">#SS-892341 (3 Items)</p>
+            ) : (
+              allActivity.map((act: any, idx: number) => (
+                <div key={`${act.type}-${act.id}-${idx}`} className="bg-card border border-border/50 rounded-xl p-4 shadow-sm">
+                  <div className="flex justify-between items-start mb-1">
+                    <div>
+                      <p className="font-bold text-foreground font-heading flex gap-2 items-center">
+                        {act.type === 'checkin' ? <MapPin className="w-3 h-3 text-primary" /> : <Package className="w-3 h-3 text-accent" />}
+                        {act.type === 'checkin' ? 'Checked In' : 'Order Submitted'}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {act.type === 'checkin' ? act.customerName : `#SS-${act.orderNumber || act.id?.slice(-6)}`}
+                      </p>
+                    </div>
+                    {act.type === 'order' && (
+                      <p className="font-bold text-primary">{formatCurrency(act.grandTotal)}</p>
+                    )}
+                    <p className="text-[10px] text-muted-foreground whitespace-nowrap pt-1">
+                      {formatDistanceToNow(act.date, { addSuffix: true })}
+                    </p>
+                  </div>
+                  {act.type === 'order' && (
+                    <p className="text-[10px] text-muted-foreground mt-1.5">{act.customerName || 'Store'}</p>
+                  )}
                 </div>
-                <p className="font-bold text-primary">$1,250.00</p>
-              </div>
-              <p className="text-[10px] text-muted-foreground mt-2">2 hours ago • Sydney Stone Supplies</p>
-            </div>
-
-            <div className="bg-card border border-border/50 rounded-xl p-4 shadow-sm opacity-80">
-              <div className="flex justify-between items-start mb-2">
-                <div>
-                  <p className="font-bold text-foreground font-heading flex gap-2 items-center"><Package className="w-3 h-3" /> Order Submitted</p>
-                  <p className="text-xs text-muted-foreground">#SS-892340 (10 Items)</p>
-                </div>
-                <p className="font-bold text-primary">$4,250.00</p>
-              </div>
-              <p className="text-[10px] text-muted-foreground mt-2">Yesterday • Porcelain Sealer Co.</p>
-            </div>
+              ))
+            )}
           </div>
         </div>
 
