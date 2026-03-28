@@ -11,6 +11,9 @@ import { toast } from "sonner";
 import { useCustomer } from "@/contexts/CustomerContext";
 import { Button } from "@/components/ui/button";
 import { Product } from "@/lib/products";
+import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
+
+type FilterType = 'today' | 'week' | 'month' | 'all';
 
 const formatCurrency = (val: number) => new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(val);
 
@@ -36,11 +39,72 @@ export default function OrderHistory() {
     const { data: ordersData = { data: [] }, isLoading } = useQuery({
         queryKey: ['orders-history'],
         queryFn: async () => {
-            const res = await apiFetch('/api/orders?limit=100');
+            const res = await apiFetch('/api/orders?limit=250'); // Increased limit for history
             if (!res.ok) throw new Error("Failed");
             return res.json();
         }
     });
+
+    const [dateFilter, setDateFilter] = useState<FilterType>('all');
+    const [selectedSalespersonId, setSelectedSalespersonId] = useState<string>("");
+
+    // Admin-only: Fetch all salespeople for filtering
+    const { data: usersData } = useQuery({
+        queryKey: ['users-list'],
+        queryFn: async () => {
+            if (user?.role !== 'admin') return { data: [] };
+            const res = await apiFetch('/api/users?limit=100');
+            return res.json();
+        },
+        enabled: user?.role === 'admin'
+    });
+    const salespeople = (usersData?.data || []).filter((u: any) => u.role !== 'customer');
+
+    const getDateRange = (type: FilterType) => {
+        const now = new Date();
+        switch (type) {
+            case 'today': return { start: startOfDay(now), end: endOfDay(now) };
+            case 'week': return { start: startOfWeek(now), end: endOfWeek(now) };
+            case 'month': return { start: startOfMonth(now), end: endOfMonth(now) };
+            default: return { start: null, end: null };
+        }
+    };
+
+    const [isExporting, setIsExporting] = useState(false);
+
+    const handleExportCSV = async () => {
+        setIsExporting(true);
+        const { start, end } = getDateRange(dateFilter);
+        const params = new URLSearchParams();
+
+        if (start) params.append('startDate', start.toISOString());
+        if (end) params.append('endDate', end.toISOString());
+        if (user?.role === 'admin' && selectedSalespersonId) {
+            params.append('salespersonId', selectedSalespersonId);
+        }
+
+        try {
+            const res = await apiFetch(`/api/orders/export?${params.toString()}`);
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || "Export failed");
+            }
+
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `orders_export_${dateFilter}_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            toast.success("CSV Export starting...");
+        } catch (err: any) {
+            toast.error(err.message);
+        } finally {
+            setIsExporting(false);
+        }
+    };
     
     const orders = Array.isArray(ordersData) ? ordersData : (ordersData.data || []);
 
@@ -146,6 +210,44 @@ export default function OrderHistory() {
                         placeholder="Search by order #, store, or product..."
                         className="w-full h-10 rounded-xl bg-muted pl-9 pr-4 text-sm font-body text-foreground placeholder:text-muted-foreground border-0 outline-none focus:ring-2 focus:ring-primary/50"
                     />
+                </div>
+
+                <div className="flex flex-col gap-2.5">
+                    <div className="flex gap-2">
+                        <select
+                            value={dateFilter}
+                            onChange={(e) => setDateFilter(e.target.value as FilterType)}
+                            className="flex-1 h-9 px-3 rounded-xl bg-muted border-0 text-[10px] font-heading font-bold uppercase tracking-wider text-foreground outline-none focus:ring-2 focus:ring-primary/40"
+                        >
+                            <option value="all">All Time</option>
+                            <option value="today">Today</option>
+                            <option value="week">This Week</option>
+                            <option value="month">This Month</option>
+                        </select>
+
+                        {user?.role === 'admin' && (
+                            <select
+                                value={selectedSalespersonId}
+                                onChange={(e) => setSelectedSalespersonId(e.target.value)}
+                                className="flex-1 h-9 px-3 rounded-xl bg-muted border-0 text-[10px] font-heading font-bold uppercase tracking-wider text-foreground outline-none focus:ring-2 focus:ring-primary/40"
+                            >
+                                <option value="">All Staff</option>
+                                {salespeople.map((u: any) => (
+                                    <option key={u.id} value={u.id}>{u.name}</option>
+                                ))}
+                            </select>
+                        )}
+
+                        <Button 
+                            onClick={handleExportCSV}
+                            disabled={isExporting}
+                            variant="secondary"
+                            className="h-9 px-4 rounded-xl flex items-center gap-2 text-[10px] font-heading font-bold uppercase tracking-wider bg-accent/10 text-accent hover:bg-accent hover:text-accent-foreground transition-all"
+                        >
+                            {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+                            Export
+                        </Button>
+                    </div>
                 </div>
             </header>
 

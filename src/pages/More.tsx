@@ -44,8 +44,6 @@ const More = () => {
       title: "Tools",
       items: [
         { id: "install", icon: Smartphone, label: isInstalled ? "Installed" : "Install App", subtitle: "Install Sure Seal SFA on your device" },
-        { id: "export", icon: Download, label: "Export Data", subtitle: "Xero, QuickBooks formats" },
-        { id: "reports", icon: FileText, label: "Reports", subtitle: "Daily & weekly reports" },
       ],
     },
     {
@@ -91,10 +89,6 @@ const More = () => {
       } else {
         toast.info("Installation not supported or already installed. You can install it via your browser's menu.");
       }
-    } else if (id === "export") {
-      toast.success(`Spreadsheet exported and emailed to you.`);
-    } else if (id === "reports") {
-      toast.success(`Weekly report generated and emailed to you.`);
     } else if (id === "pricing") {
       navigate("/pricing-management");
     } else if (id === "promotions") {

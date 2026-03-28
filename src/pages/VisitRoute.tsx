@@ -64,8 +64,8 @@ export default function VisitRoute() {
     const { user } = useAuth();
     const queryClient = useQueryClient();
 
-    // 🌍 GPS tracking — fires heartbeats to /api/location every 45s while on this page
-    useLocationTracking({ enabled: user?.role !== 'admin' });
+    // 🌍 GPS tracking — fires heartbeats to /api/location every 30s with accuracy/distance filters
+    const { currentLocation, route: breadcrumbs } = useLocationTracking({ enabled: user?.role !== 'admin' });
 
     const [checkingInId, setCheckingInId] = useState<string | null>(null);
     const [notes, setNotes] = useState("");
@@ -80,14 +80,12 @@ export default function VisitRoute() {
     const [routeSteps, setRouteSteps] = useState<RouteSteps | null>(null);
     const [isGeocoding, setIsGeocoding] = useState(false);
 
-    // Get user's GPS position for navigation
+    // Update navigation seed position when current location changes
     useEffect(() => {
-        if (!navCustomer) return;
-        navigator.geolocation?.getCurrentPosition(
-            (pos) => setMyLocation([pos.coords.latitude, pos.coords.longitude]),
-            () => toast.error("Could not get your location — check browser permissions")
-        );
-    }, [navCustomer]);
+        if (currentLocation) {
+            setMyLocation([currentLocation.lat, currentLocation.lng]);
+        }
+    }, [currentLocation]);
 
     // Geocode the destination when navigation starts
     useEffect(() => {
@@ -128,51 +126,24 @@ export default function VisitRoute() {
 
     const checkInMutation = useMutation({
         mutationFn: async ({ customerId, customerName }: { customerId: string; customerName: string }) => {
-            if (!navigator.onLine) {
-                const { getDB } = await import("@/lib/db");
-                const db = await getDB();
-                await db.put('check_ins_offline', {
-                    customerId, customerName, notes, photoBlob: photoData ? await (await fetch(photoData)).blob() : null,
-                    offline_id: crypto.randomUUID(),
-                    createdAt: new Date().toISOString()
-                });
-                return { offline: true };
-            }
+            const { SyncService } = await import("@/services/sync.service");
+            
+            const payload = {
+                customerId,
+                customerName,
+                notes,
+                photoBlob: photoData ? await (await fetch(photoData)).blob() : null,
+                timestamp: Date.now()
+            };
 
-            const formData = new FormData();
-            formData.append('customerId', customerId);
-            formData.append('customerName', customerName);
-            if (notes) formData.append('notes', notes);
-            if (photoData) {
-                const r = await fetch(photoData);
-                const blob = await r.blob();
-                formData.append('photo', blob, 'photo.jpg');
-            }
-
-            try {
-                const res = await apiFetch('/api/check-ins', {
-                    method: 'POST',
-                    body: formData
-                });
-                if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
-                return res.json();
-            } catch (err) {
-                const { getDB } = await import("@/lib/db");
-                const db = await getDB();
-                await db.put('check_ins_offline', {
-                    customerId, customerName, notes, photoBlob: photoData ? await (await fetch(photoData)).blob() : null,
-                    offline_id: crypto.randomUUID(),
-                    createdAt: new Date().toISOString()
-                });
-                return { offline: true };
-            }
+            // Unified Sync: Add to queue (it will try to process immediately if online)
+            await SyncService.addToQueue('CHECK_IN', payload, 1); // High priority
+            return { success: true };
         },
         onSuccess: (data: any, vars) => {
-            if (data?.offline) {
-                toast.success("Saved Offline", { description: "Check-in will sync when back online." });
-            } else {
-                toast.success(`✅ Checked in to ${vars.customerName}`);
-            }
+            toast.success(`✅ Check-in queued for ${vars.customerName}`, {
+                description: navigator.onLine ? "Syncing now..." : "Will sync when back online."
+            });
             setCheckingInId(null);
             setNotes("");
             setPhotoData(null);
@@ -248,6 +219,7 @@ export default function VisitRoute() {
                         markers={navMarkers}
                         routeFrom={myLocation || undefined}
                         routeTo={destCoords || undefined}
+                        breadcrumbRoute={breadcrumbs}
                         onRouteLoaded={setRouteSteps}
                     />
                 </div>

@@ -1,138 +1,130 @@
 import { MobileLayout } from "@/components/layout/MobileLayout";
 import { ProductCard } from "@/components/ProductCard";
-import { Search, SlidersHorizontal, Loader2, Tag } from "lucide-react";
-import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Product } from "@/lib/products";
-import { useCustomer } from "@/contexts/CustomerContext";
+import { Search, SlidersHorizontal, Loader2, Tag, ShoppingBag } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { apiFetch } from "@/lib/apiFetch";
+import { useCatalog } from "@/hooks/useCatalog";
+import { memo } from "react";
 
-import { getDB } from "@/lib/db";
+// --- Sub-components (could later be moved to common components or pages/Catalog/components) ---
+
+const PricingSelector = memo(({ selectedLevelId, pricingLevels, onSelect }: any) => (
+  <div className="flex items-center gap-2 mb-3 p-2.5 rounded-xl bg-muted/60 border border-border/50">
+    <Tag className="h-4 w-4 text-primary shrink-0" />
+    <span className="text-[10px] font-heading font-bold uppercase tracking-wider text-muted-foreground shrink-0">Price Level</span>
+    <select
+      value={selectedLevelId}
+      onChange={(e) => onSelect(e.target.value)}
+      className="flex-1 h-7 px-2 rounded-md bg-card border border-border text-xs font-heading font-bold text-foreground outline-none focus:ring-2 focus:ring-primary/40"
+    >
+      {pricingLevels.map((level: any) => (
+        <option key={level.id} value={level.id}>{level.name}</option>
+      ))}
+    </select>
+  </div>
+));
+
+const CategoryTabs = memo(({ categories, currentCategory, onSelect }: any) => (
+  <div className="flex gap-1.5 mt-3 overflow-x-auto no-scrollbar scroll-smooth">
+    {categories.map((c: string) => (
+      <button
+        key={c}
+        onClick={() => onSelect(c)}
+        className={`text-[10px] font-body font-medium px-3 py-1 rounded-full whitespace-nowrap transition-all duration-200 ${
+          currentCategory === c
+            ? "bg-primary text-primary-foreground shadow-sm scale-105"
+            : "bg-muted text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground"
+        }`}
+      >
+        {c}
+      </button>
+    ))}
+  </div>
+));
+
+const SearchBar = memo(({ query, onChange }: any) => (
+  <div className="flex gap-2">
+    <div className="relative flex-1 group">
+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+      <input
+        type="text"
+        placeholder="Search products..."
+        value={query}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full h-10 rounded-lg bg-muted pl-9 pr-3 text-sm font-body text-foreground placeholder:text-muted-foreground border-0 outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+      />
+    </div>
+    <button className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground transition-all">
+      <SlidersHorizontal className="h-4 w-4" />
+    </button>
+  </div>
+));
+
+// --- Main Component ---
 
 const Catalog = () => {
-  const [category, setCategory] = useState("All");
-  const [searchQuery, setSearchQuery] = useState("");
-
-  const { data: products = [], isLoading } = useQuery<Product[]>({
-    queryKey: ['products'],
-    queryFn: async () => {
-      if (!navigator.onLine) {
-        const db = await getDB();
-        return await db.getAll('products');
-      }
-      try {
-        const res = await apiFetch('/api/products');
-        if (!res.ok) throw new Error("Failed to fetch products");
-        return res.json();
-      } catch (err) {
-        const db = await getDB();
-        return await db.getAll('products');
-      }
-    }
-  });
-
   const { user } = useAuth();
-  const { pricingLevels, selectedPricingLevelId, setSelectedPricingLevelId, getAdjustedPrice } = useCustomer();
-
-  const categories = useMemo(() => {
-    const types = Array.from(new Set(products.map((p) => p.category)));
-    return ["All", ...types];
-  }, [products]);
-
-  // Apply pricing level to products
-  const filtered = useMemo(() => {
-    return products.filter((p) => {
-      const matchesCategory = category === "All" || p.category === category;
-      const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.description.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesCategory && matchesSearch;
-    }).map(p => {
-      const adjustedVariants = (p.variants || []).map((v: any) => ({
-        ...v,
-        price: getAdjustedPrice(v.sku, v.price),
-        stockStatus: v.stockStatus || v.stock_status || 'in_stock',
-        stockQty: v.stockQty ?? v.stock_qty ?? 100
-      }));
-      return { ...p, variants: adjustedVariants };
-    });
-  }, [category, searchQuery, products, selectedPricingLevelId, pricingLevels]);
-
-  const currentLevel = pricingLevels.find((l: any) => l.id === selectedPricingLevelId);
+  const {
+    category, setCategory,
+    searchQuery, setSearchQuery,
+    isLoading,
+    categories,
+    filteredProducts,
+    pricingLevels,
+    selectedPricingLevelId,
+    setSelectedPricingLevelId
+  } = useCatalog();
 
   return (
     <MobileLayout>
-      <header className="bg-card border-b border-border px-5 pt-6 pb-4 sticky top-0 z-10">
+      <header className="bg-card/80 backdrop-blur-md border-b border-border px-5 pt-6 pb-4 sticky top-0 z-20 shadow-sm">
         <div className="flex items-center justify-between mb-3">
-          <h1 className="text-lg font-heading font-bold text-foreground">Catalog</h1>
+          <h1 className="text-xl font-heading font-extrabold text-foreground flex items-center gap-2">
+            <ShoppingBag className="h-5 w-5 text-primary" />
+            Catalog
+          </h1>
         </div>
 
-        {/* Pricing Level Selector */}
+        {/* Visibility based on role - typically admin/sales rep task */}
         {user?.role !== "customer" && (
-          <div className="flex items-center gap-2 mb-3 p-2.5 rounded-xl bg-muted/60 border border-border/50">
-            <Tag className="h-4 w-4 text-primary shrink-0" />
-            <span className="text-[10px] font-heading font-bold uppercase tracking-wider text-muted-foreground shrink-0">Price Level</span>
-            <select
-              value={selectedPricingLevelId}
-              onChange={(e) => setSelectedPricingLevelId(e.target.value)}
-              className="flex-1 h-7 px-2 rounded-md bg-card border border-border text-xs font-heading font-bold text-foreground outline-none focus:ring-2 focus:ring-primary/40"
-            >
-              {pricingLevels.map((level: any) => (
-                <option key={level.id} value={level.id}>{level.name}</option>
-              ))}
-            </select>
-          </div>
+          <PricingSelector 
+            selectedLevelId={selectedPricingLevelId}
+            pricingLevels={pricingLevels}
+            onSelect={setSelectedPricingLevelId}
+          />
         )}
 
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Search products..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full h-9 rounded-lg bg-muted pl-9 pr-3 text-sm font-body text-foreground placeholder:text-muted-foreground border-0 outline-none focus:ring-2 focus:ring-accent"
-            />
-          </div>
-          <button className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
-            <SlidersHorizontal className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="flex gap-1.5 mt-3 overflow-x-auto no-scrollbar">
-          {categories.map((c) => (
-            <button
-              key={c}
-              onClick={() => setCategory(c)}
-              className={`text-[10px] font-body font-medium px-3 py-1 rounded-full whitespace-nowrap transition-colors ${category === c
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground hover:text-foreground"
-                }`}
-            >
-              {c}
-            </button>
-          ))}
-        </div>
+        <SearchBar 
+          query={searchQuery}
+          onChange={setSearchQuery}
+        />
+
+        <CategoryTabs 
+          categories={categories}
+          currentCategory={category}
+          onSelect={setCategory}
+        />
       </header>
-      <div className="px-4 py-3 md:px-6 md:py-6 max-w-7xl mx-auto">
+
+      <main className="px-4 py-5 md:px-6 md:py-6 max-w-7xl mx-auto min-h-[60vh]">
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-            <Loader2 className="h-10 w-10 animate-spin opacity-20 mb-2" />
-            <p className="text-sm">Loading products...</p>
+          <div className="flex flex-col items-center justify-center py-20 text-muted-foreground/60">
+            <Loader2 className="h-12 w-12 animate-spin mb-4" />
+            <p className="text-sm font-medium animate-pulse">Loading products...</p>
           </div>
-        ) : filtered.length > 0 ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5 lg:gap-6">
-            {filtered.map((p) => (
+        ) : filteredProducts.length > 0 ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+            {filteredProducts.map((p) => (
               <ProductCard key={p.handle} {...p} />
             ))}
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-            <Search className="h-10 w-10 mb-2 opacity-20" />
-            <p className="text-sm">No products found</p>
+          <div className="flex flex-col items-center justify-center py-24 text-muted-foreground/40 bg-muted/5 rounded-3xl border-2 border-dashed border-border/60 mx-2">
+            <Search className="h-12 w-12 mb-4" />
+            <h3 className="text-lg font-bold text-muted-foreground/80">Nothing here!</h3>
+            <p className="text-sm">Try adjusting your search or category filter.</p>
           </div>
         )}
-      </div>
+      </main>
     </MobileLayout>
   );
 };

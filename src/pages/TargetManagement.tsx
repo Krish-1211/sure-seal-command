@@ -50,11 +50,15 @@ export default function TargetManagement() {
         onError: () => toast.error("Failed to update target")
     });
 
-    const salesReps = users.filter((u: any) => u.role === 'salesman').map((rep: any) => {
-        const repOrders = orders.filter((o: any) => o.userId === rep.id && o.status !== 'cancelled');
+    // ─── 1. Safer Data Normalization to prevent crashes ───────────────────────
+    const usersList = Array.isArray(users) ? users : ((users as any).data || []);
+    const ordersList = Array.isArray(orders) ? orders : ((orders as any).data || []);
+
+    const salesReps = usersList.filter((u: any) => u.role === 'salesman').map((rep: any) => {
+        const repOrders = ordersList.filter((o: any) => o.userId === rep.id && o.status !== 'cancelled');
         const revenue = repOrders.reduce((acc: number, o: any) => acc + (Number(o.grandTotal) || 0), 0);
         const target = rep.monthlyTarget || 20000;
-        const pct = Math.min(Math.round((revenue / target) * 100), 100);
+        const pct = isFinite(revenue / target) ? Math.min(Math.round((revenue / target) * 100), 100) : 0;
         return { ...rep, revenue, target, pct, orderCount: repOrders.length };
     });
 

@@ -31,6 +31,7 @@ interface MapViewProps {
     markers?: Marker[];
     routeFrom?: [number, number];
     routeTo?: [number, number];
+    breadcrumbRoute?: [number, number][];
     onRouteLoaded?: (result: RouteResult) => void;
 }
 
@@ -78,10 +79,11 @@ async function fetchRoute(from: [number, number], to: [number, number]): Promise
     };
 }
 
-export function MapView({ className = "w-full h-64", center, zoom = 13, markers = [], routeFrom, routeTo, onRouteLoaded }: MapViewProps) {
+export function MapView({ className = "w-full h-64", center, zoom = 13, markers = [], routeFrom, routeTo, breadcrumbRoute, onRouteLoaded }: MapViewProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const mapRef = useRef<L.Map | null>(null);
     const routeLayerRef = useRef<L.Polyline | null>(null);
+    const breadcrumbLayerRef = useRef<L.Polyline | null>(null);
     const markersRef = useRef<L.Marker[]>([]);
 
     useEffect(() => {
@@ -135,10 +137,18 @@ export function MapView({ className = "w-full h-64", center, zoom = 13, markers 
             }).catch(console.error);
         }
 
+        // Draw breadcrumbs (Step 6)
+        if (breadcrumbRoute && breadcrumbRoute.length > 1) {
+            if (breadcrumbLayerRef.current) breadcrumbLayerRef.current.remove();
+            breadcrumbLayerRef.current = L.polyline(breadcrumbRoute, {
+                color: "#64748b", weight: 3, opacity: 0.5, dashArray: "5, 10"
+            }).addTo(map);
+        }
+
         return () => {
             // Don't destroy — just update
         };
-    }, [markers, routeFrom, routeTo, center, zoom]);
+    }, [markers, routeFrom, routeTo, breadcrumbRoute, center, zoom]);
 
     useEffect(() => {
         return () => {

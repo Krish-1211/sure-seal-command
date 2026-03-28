@@ -9,6 +9,7 @@ import jwt from "jsonwebtoken";
 import cookieParser from "cookie-parser";
 import crypto from "crypto";
 import admin from "firebase-admin";
+import { Parser } from 'json2csv';
 
 if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
     try {
@@ -725,6 +726,70 @@ app.post("/api/orders", requireAuth, async (req, res) => {
     }
 });
 
+// GET /api/orders/export — CSV export with filtering
+app.get("/api/orders/export", requireAuth, async (req, res) => {
+    try {
+        const { startDate, endDate, salespersonId } = req.query;
+        let baseSql = `
+            SELECT o.order_number, o.created_at, o.customer_name, o.grand_total, o.status, u.name as salesperson
+            FROM orders o
+            LEFT JOIN users u ON o.user_id = u.id
+        `;
+        let values = [];
+        let whereClauses = [];
+
+        // Role-based filtering
+        if (req.user.role !== 'admin') {
+            whereClauses.push(`o.user_id = $${values.length + 1}`);
+            values.push(req.user.id);
+        } else if (salespersonId) {
+            whereClauses.push(`o.user_id = $${values.length + 1}`);
+            values.push(salespersonId);
+        }
+
+        // Date range filtering
+        if (startDate) {
+            whereClauses.push(`o.created_at >= $${values.length + 1}`);
+            values.push(startDate);
+        }
+        if (endDate) {
+            whereClauses.push(`o.created_at <= $${values.length + 1}`);
+            values.push(endDate);
+        }
+
+        if (whereClauses.length > 0) {
+            baseSql += ` WHERE ` + whereClauses.join(' AND ');
+        }
+        
+        baseSql += ` ORDER BY o.created_at DESC`;
+
+        const result = await client.query(baseSql, values);
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: "No orders found for this range." });
+        }
+
+        // Format data for business users
+        const formattedData = result.rows.map(o => ({
+            'Order #': o.order_number,
+            'Date': new Date(o.created_at).toLocaleString(),
+            'Customer': o.customer_name,
+            'Amount': parseFloat(o.grand_total).toFixed(2),
+            'Status': o.status || 'Confirmed',
+            'Salesperson': o.salesperson || 'System'
+        }));
+
+        const parser = new Parser();
+        const csv = parser.parse(formattedData);
+
+        res.header('Content-Type', 'text/csv');
+        res.attachment(`orders_export_${new Date().toISOString().split('T')[0]}.csv`);
+        res.send(csv);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // ─── Feature 3: Cancel / Status update for orders ────────────────────────────
 app.patch("/api/orders/:id/cancel", requireAuth, async (req, res) => {
     try {
@@ -931,8 +996,14 @@ app.post("/api/pricing-levels/:id/import-csv", requireAuth, requireAdmin, upload
 // ─── GPS Location – salesman heartbeat ───────────────────────────────────────
 app.post("/api/location", requireAuth, async (req, res) => {
     try {
-        const { lat, lng } = req.body;
+        const { lat, lng, accuracy } = req.body;
         if (lat == null || lng == null) return res.status(400).json({ error: 'lat/lng required' });
+
+        // Step 5: Backend Guard (Don't trust client)
+        if (accuracy != null && accuracy > 100) {
+            return res.status(400).json({ error: 'Low accuracy location ignored' });
+        }
+
         await client.query(
             `UPDATE users SET last_lat=$1, last_lng=$2, location_updated_at=now() WHERE id=$3`,
             [lat, lng, req.user.id]
@@ -1084,7 +1155,7 @@ app.patch("/api/users/:id/customers", requireAuth, requireAdmin, async (req, res
 if (!process.env.VERCEL) {
     const frontendBuildPath = path.join(__dirname, "../dist");
     app.use(express.static(frontendBuildPath));
-    app.get("*", (req, res) => {
+    app.get(/.*/, (req, res) => {
         res.sendFile(path.join(frontendBuildPath, "index.html"));
     });
 }
